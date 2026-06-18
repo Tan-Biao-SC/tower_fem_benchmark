@@ -1,0 +1,57 @@
+/SOLU
+ANTYPE, STATIC
+
+! 1. create arrays to store the displacements at the leg tips
+*dim,tip_ux,array,6
+*dim,tip_uy,array,6
+*dim,tip_uz,array,6
+*dim,tip_rx,array,6
+*dim,tip_ry,array,6
+*dim,tip_rz,array,6
+
+*do,icase,1,6,1
+    /SOLU
+    allsel,all
+    fdele,all,all
+
+    *if,icase,eq,1,then
+        f,99999,fx,1e3
+    *elseif,icase,eq,2,then
+        f,99999,fy,1e3
+    *elseif,icase,eq,3,then
+        f,99999,fz,1e3
+    *elseif,icase,eq,4,then
+        f,99999,mx,1e3
+    *elseif,icase,eq,5,then
+        f,99999,my,1e3
+    *elseif,icase,eq,6,then
+        f,99999,mz,1e3
+    *endif
+
+    solve
+    finish
+
+    /POST1
+    set,last
+    *get,tip_ux(icase),NODE,99999,U,X
+    *get,tip_uy(icase),NODE,99999,U,Y
+    *get,tip_uz(icase),NODE,99999,U,Z
+    *get,tip_rx(icase),NODE,99999,ROT,X
+    *get,tip_ry(icase),NODE,99999,ROT,Y
+    *get,tip_rz(icase),NODE,99999,ROT,Z
+    finish
+*enddo
+
+! 写到文件——一次 *vwrite，6 个数组各 6 个元素，产出 6 行
+*dim,cc,array,6
+cc(1)=1,2,3,4,5,6
+
+/delete,tip_disp,txt
+*cfopen,tip_disp,txt
+*vwrite
+('load_case,ux,uy,uz,rx,ry,rz')
+*vwrite,cc(1),tip_ux(1),tip_uy(1),tip_uz(1),tip_rx(1),tip_ry(1),tip_rz(1)
+(F4.0,6(',',E12.5))
+*cfclose
+
+FINISH

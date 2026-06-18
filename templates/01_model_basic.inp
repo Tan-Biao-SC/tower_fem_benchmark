@@ -1,0 +1,155 @@
+! Model of the tower
+! SI units: kg, m, s, N, Pa
+! All the parmeters with __XXX_STR__ or __XXX_VAL__ will be substitutted in
+! the main python program.
+! CAUTION: Avoid the space in the APDL commands. It may cause error.
+! =============================================================================
+! 1. Basic Settings
+FINISH
+/CLEAR
+/FILNAME,__JobName_STR__,1
+
+! 1.1 Setting the fonts of the graphic window (Legend, Entity, Annotations)
+! /DEV,FONT,LEGEND,MENU 
+/DEVICE,FONT,1,BITSTREAM*CHARTER,MEDIUM,R,32,,,,,  
+! /DEV,FONT,ENTITY,MENU 
+/DEVICE,FONT,2,BITSTREAM*CHARTER,MEDIUM,R,16,,,,,  
+! /DEV,FONT,ANNO  ,MENU 
+/DEVICE,FONT,3,BITSTREAM*CHARTER,MEDIUM,R,32,,,,,  
+
+! 1.2 Change the background color from black to white
+/RGB,INDEX,100,100,100,0   
+/RGB,INDEX,80,80,80,13   
+/RGB,INDEX,60,60,60,14   
+/RGB,INDEX,0,0,0,15  
+/REPLOT
+/PREP7
+
+! =============================================================================
+! 2. Create the preliminary model, including:
+!   - Parmater Defining:
+!       - materials
+!       - sections
+!       - element types
+!   - nodes
+!       - nodes for the truss
+!       - node for the cross-secion center (master node of RBE3)
+!   - Elements
+!       - Legs
+!       - RBE3 (bundle a mass21 element with 0 mass)
+! =============================================================================
+! 2.1 Define the parameters
+! 2.1.1 Element types
+ET,1,BEAM188        ! Leg members & Diaphragm members
+ET,2,LINK180        ! Brace memebers
+ET,3,MASS21         ! Bundle to master node for the RBE3
+
+! Backup commands (in case of using beam4)
+! ET,1,BEAM4          ! Leg members & Diaphragm members
+
+! 2.1.2 Materials
+UIMP,1,EX,PRXY,DENS,2.06E11,0.31,7850
+MP,ALPX,1,0.000012
+
+! 2.1.3 Sections
+!   The section data is now hard coding here. IN the future it can be set to 
+!   be python parameters, such as __LegSection_L1_VAL__
+SECTYPE,1,BEAM,L                            ! Leg section
+SECDATA,0.16,0.16,0.014,0.014               ! L1, L2, T1, T2
+
+SECTYPE,2,BEAM,L                            ! Diaphragm section
+SECDATA,0.08,0.08,0.006,0.006
+
+R,3,7.412E-4                                ! Brace section
+R,4,1E-12,1E-12,1E-12                       ! Mass Elements
+
+! Backup commands (in case of using beam4)
+! R,1,4.2978E-3,1.251E-5,1.251E-5,,,, ! Leg
+! RMORE,,3.96E-7,0,0
+! R,2,9.397E-4,60.24E-8,60.24E-8,,,,  ! Diaphragm
+! RMORE,,2.51E-8,0,0
+
+! 2.2 Create Nodes
+! 2.2.1 Setting the basic geometry parameters
+!   A truss with 3 sections formed by 5 subsections: |xxxxx|xxxxx|xxxxx|
+!   - NUM_SECTIONS: number of sections (period cell)
+!   - NUM_SUB_SECTIONS: numebr of subsections between 2 diaphragms
+!   - NUM_NODE_PLANES: number of node planes (total number of subsctions + 1)
+!   - LS: length of the subsection along the tower height (x-axis)
+!   - WS: width of the truss (square cross-section)
+NUM_SECTIONS = __NumSections_VAL__
+NUM_SUB_SECTIONS = __NumSubsections_VAL__
+NUM_NODE_PLANES = NUM_SECTIONS*NUM_SUB_SECTIONS+1
+LS = __Ls_VAL__
+WS = __Ws_VAL__
+
+! 2.2.2 Truss nodes and center nodes of each node plane
+! The origin point is located in the bottom center of the truss, and x-axis is
+! along the tower height.
+! In the cross-section:
+!       TL(-1,1)-------TR(1,1)         z|
+!           |           |               |___ y
+!           |           | WS
+!           |           |
+!       BL(-1,-1)------BR(1,-1)
+!                 WS
+! CAUTION: It assumes that the number of node planes are smaller than 1000.
+!          NUM_SECTIONS*NUM_SUB_SECTIONS+1 < 1000
+*DO,I,1,NUM_NODE_PLANES,1
+    X=(I-1)*LS
+    ! Truss nodes
+    ! Bottom left leg
+    NID=I+1000
+    N,NID,X,-WS/2.0,-WS/2.0
+    ! Bottom right leg
+    NID=I+2000
+    N,NID,X,WS/2.0,-WS/2.0
+    ! Top right leg
+    NID=I+3000
+    N,NID,X,WS/2.0,WS/2.0
+    ! Top left leg
+    NID=I+4000
+    N,NID,X,-WS/2.0,WS/2.0
+
+    ! Node in the center of the cross-section, for RBE3
+    NID=I+5000
+    N,NID,X,0,0
+*ENDDO
+
+! 2.3 Create elements (Leg member and RBE3)
+! 2.3.1 Leg members: BEAM188
+TYPE,1
+MAT,1
+SECNUM,1
+! REAL,1
+*DO,I,1,NUM_NODE_PLANES-1,1
+    EN,I+1000,I+1000,I+1+1000   ! Bottom left leg
+    EN,I+2000,I+2000,I+1+2000   ! Bottom right leg
+    EN,I+3000,I+3000,I+1+3000   ! Top right leg
+    EN,I+4000,I+4000,I+1+4000   ! Top left  leg
+*ENDDO
+
+! 2.3.2 RBE3 element
+!   Add a MASS21 element on the center node, or the RBE3 element will not work.
+TYPE,3
+REAL,4
+*DO,I,1,NUM_NODE_PLANES,1
+    EN,I+5000,I+5000
+*ENDDO
+
+
+TYPE,1
+SECNUM,1
+
+! Setting the RBE3
+!   - select the nodes on the cross-section
+!   - related to the center node (ref node), with ALL DOFs
+*DO,I,1,NUM_NODE_PLANES,1
+    ALLSEL,ALL,ALL
+    NSEL,S,LOC,X,(I-1)*LS-1E-6,(I-1)*LS+1E-6
+    NSEL,U,NODE,,I+5000
+    RBE3,I+5000,ALL,ALL        ! Master, DOF, Slave
+*ENDDO
+ALLSEL,ALL,ALL
+
+MAX_ELEM_NUM=6000              ! Assumed

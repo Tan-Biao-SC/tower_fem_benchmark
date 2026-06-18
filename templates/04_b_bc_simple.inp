@@ -1,0 +1,23 @@
+! =============================================================================
+! Simple support Boundary Conditions: simple support beam
+! - Following the "brace.inp" file
+! - The Nodes on the x=0 and x=L planes will be fixed
+! =============================================================================
+/SOLU
+
+! Select all nodes on the x=0 plane
+ALLSEL,ALL,ALL
+NSEL,S,LOC,X,0,0
+D,ALL,UX,0              ! Node, Lab, Value
+D,ALL,UY,0
+D,ALL,UZ,0
+
+! Select all nodes on the x=L plane
+ALLSEl,ALL,ALL
+NSEL,S,LOC,X,(NUM_NODE_PLANES-1)*LS
+D,ALL,UX,0              ! Node, Lab, Value
+D,ALL,UY,0
+D,ALL,UZ,0
+ALLSEL,ALL,ALL
+
+FINISH

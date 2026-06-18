@@ -1,0 +1,46 @@
+! =============================================================================
+! Modal Analysis + Frequency Extraction
+! - Following the BC template (or directly after model if free-free)
+! - NUM_MODES: number of modes to extract (set by Python)
+! - Output: __CASE_NAME_VAL___freq.txt (in ANSYS working directory)
+! =============================================================================
+FINISH
+
+! Number of modes to extract
+NUM_MODES=__NUM_MODES_VAL__
+
+! 1. Solve
+/SOLU
+ANTYPE, MODAL
+MODOPT, LANB, NUM_MODES
+MXPAND, NUM_MODES
+LUMPM, OFF
+SOLVE
+FINISH
+
+! 2. Post-processing: extract all frequencies to file
+/POST1
+
+! Get actual number of modes extracted
+*GET,N_MODES,ACTIVE,0,SET,NSET
+
+! Store frequencies in array
+*DIM,FREQ_ARR,ARRAY,N_MODES
+*DIM,MODE_IDX,ARRAY,N_MODES
+*DO,I,1,N_MODES,1
+    SET,1,I
+    *GET,FREQ_ARR(I),MODE,I,FREQ
+    MODE_IDX(I)=I
+*ENDDO
+
+! Write to file (no path prefix — *CFOPEN does not support directories)
+/DELETE,__CASE_NAME_VAL___freq,txt
+*CFOPEN,__CASE_NAME_VAL___freq,txt
+
+*VWRITE
+('Mode,Frequency(Hz)')
+*VWRITE,MODE_IDX(1),FREQ_ARR(1)
+(F8.0,',',E15.8)
+*CFCLOS
+
+FINISH

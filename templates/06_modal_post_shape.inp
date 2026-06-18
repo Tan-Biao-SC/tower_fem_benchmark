@@ -1,0 +1,75 @@
+! =============================================================================
+! Modal Shape Extraction (standalone post-processing)
+! - Loads database and result files from a previous modal analysis
+! - Extracts neutral-axis displacements for a specific mode
+! - Uses RBE3 master nodes (5000-series) defined in 01_model_basic.inp
+! - TARGET_MODE: mode number to extract (set by Python)
+! - Output: __CASE_NAME_VAL___shape_TARGET_MODE.txt
+! - Must be run in the same directory as the modal analysis results
+! =============================================================================
+FINISH
+
+! Resume the model database (geometry, mesh, parameters)
+RESUME,__CASE_NAME_VAL__,db
+
+! Target mode number (set by Python)
+TARGET_MODE=__TARGET_MODE_VAL__
+
+/POST1
+
+! Set the result file for post-processing
+FILE,__CASE_NAME_VAL__,rst
+
+! Get actual number of modes extracted
+*get, n_modes, ACTIVE, 0, SET, NSET
+*if, TARGET_MODE, GT, n_modes, THEN
+    TARGET_MODE = n_modes
+*endif
+
+! Read the target mode
+SET, 1, TARGET_MODE
+*get, cur_freq, MODE, TARGET_MODE, FREQ
+
+! ============================================================
+! Extract neutral-axis displacements from RBE3 master nodes
+! Master nodes: 5001, 5002, ..., 5000+NUM_NODE_PLANES
+! ============================================================
+*dim, neut_x,  array, NUM_NODE_PLANES
+*dim, neut_ux, array, NUM_NODE_PLANES
+*dim, neut_uy, array, NUM_NODE_PLANES
+*dim, neut_uz, array, NUM_NODE_PLANES
+*dim, neut_rx, array, NUM_NODE_PLANES
+*dim, neut_ry, array, NUM_NODE_PLANES
+*dim, neut_rz, array, NUM_NODE_PLANES
+
+*do, i, 1, NUM_NODE_PLANES, 1
+    mast_id = 5000 + i
+    *get, neut_x(i),  NODE, mast_id, LOC, X
+    *get, neut_ux(i), NODE, mast_id, U,   X
+    *get, neut_uy(i), NODE, mast_id, U,   Y
+    *get, neut_uz(i), NODE, mast_id, U,   Z
+    *get, neut_rx(i), NODE, mast_id, ROT, X
+    *get, neut_ry(i), NODE, mast_id, ROT, Y
+    *get, neut_rz(i), NODE, mast_id, ROT, Z
+*enddo
+
+! Create index array
+*dim, idx_arr, array, NUM_NODE_PLANES
+*do, i, 1, NUM_NODE_PLANES, 1
+    idx_arr(i) = i
+*enddo
+
+! Write to file
+/delete,__CASE_NAME_VAL___shape_%TARGET_MODE%, txt
+*cfopen,__CASE_NAME_VAL___shape_%TARGET_MODE%, txt
+*vwrite, cur_freq
+('Mode frequency = ', E12.5, ' Hz')
+*vwrite
+(' ')
+*vwrite
+('Station,X(m),UX,UY,UZ,ROTX,ROTY,ROTZ')
+*vwrite, idx_arr(1), neut_x(1), neut_ux(1), neut_uy(1), neut_uz(1), neut_rx(1), neut_ry(1), neut_rz(1)
+(F6.0,',',F8.4,6(',',E12.5))
+*cfclose
+
+FINISH

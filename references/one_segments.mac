@@ -1,0 +1,169 @@
+finish
+/clear
+!采用国际单位制：N、kg、m、s
+
+!Nodes on one leg
+num_segments=100
+sub_segments = 2
+num_leg_nodes=num_segments*sub_segments+1
+
+/prep7
+! 将黑色背景改为白色：
+/RGB,INDEX,100,100,100, 0   
+/RGB,INDEX, 80, 80, 80,13   
+/RGB,INDEX, 60, 60, 60,14   
+/RGB,INDEX, 0, 0, 0,15  
+/REPLOT
+
+!建立节点
+Ll=1.0115
+Lb=2.0
+*do,i,1,num_leg_nodes,1
+    nid=i+1000
+    x=(i-1)*Ll
+    y=-Lb/2.0
+    z=-Lb/2.0
+    n,nid,x,y,z
+*enddo
+
+*do,i,1,num_leg_nodes,1
+    nid=i+2000
+    x=(i-1)*Ll
+    y=Lb/2.0
+    z=-Lb/2.0
+    n,nid,x,y,z
+*enddo
+
+*do,i,1,num_leg_nodes,1
+    nid=i+3000
+    x=(i-1)*Ll
+    y=Lb/2.0
+    z=Lb/2.0
+    n,nid,x,y,z
+*enddo
+
+*do,i,1,num_leg_nodes,1
+    nid=i+4000
+    x=(i-1)*Ll
+    y=-Lb/2.0
+    z=Lb/2.0
+    n,nid,x,y,z
+*enddo
+
+! Define materials, elements, sections
+! et,1,beam188
+et, 1, beam4
+et,2,link180
+
+!材料类型
+uimp,1,ex,prxy,dens,2.06E11,0.31,7850
+mp,alpx,1,0.000012
+
+! 截面
+! Leg
+sectype,1,beam,L
+secdata,0.16,0.16,0.014,0.014
+
+! Diagraph
+sectype,2,beam,L
+secdata,0.08,0.08,0.006,0.006
+
+! Real numebr
+r,1,7.412e-4           ! Brace
+! legs
+r,11, 4.2978e-3, 1.251e-5 , 1.251e-5 , , , ,
+rmore, , 3.96e-7, 0, 0
+! Diaphragms
+r,12, 9.397e-4, 60.24e-8, 60.24e-8, , , ,
+rmore, , 0.461e-8, 0, 0
+
+
+! Create elements
+! (1) legs
+type,1
+mat,1
+! secnum,1
+real,11
+offset=1000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset,i+1+offset
+*enddo
+
+offset=2000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset, i+1+offset
+*enddo
+
+offset=3000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset, i+1+offset
+*enddo
+
+offset=4000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset, i+1+offset
+*enddo
+
+! (2) diagraph members
+type,1
+mat,1
+secnum, 2
+real,12
+*do,i,1,num_segments+1,1
+    di=(i-1)*sub_segments+1
+    en, 5001+di, di+1000, di+2000
+    en, 5202+di, di+2000, di+3000
+    en, 5403+di, di+3000, di+4000
+    en, 5604+di, di+4000, di+1000
+    en, 5805+di, di+1000, di+3000
+    en, 6006+di, di+2000, di+4000
+*enddo
+
+! (3) brace members
+type,2
+mat,1
+real,1
+*do,i,1,num_leg_nodes-1,2
+    en,7000+i,i+2000,i+1+1000
+    en,7500+i,i+3000,i+1+2000
+    en,8000+i,i+4000,i+1+3000
+    en,8500+i,i+1000,i+1+4000
+*enddo
+
+*do,i,2,num_leg_nodes,2
+    en,9000+i,i+1000,i+1+2000
+    en,9500+i,i+2000,i+1+3000
+    en,10000+i,i+3000,i+1+4000
+    en,10500+i,i+4000,i+1+1000
+*enddo
+
+! compress the node and element number
+ALLSEL
+NUMMRG, NODE, 0.001
+NUMCMP,NODE 
+NUMCMP,ELEM 
+
+! boundary conditions
+nsel, s, loc, x, 0, 0
+d, all, all
+
+allsel, all
+
+! 8. 退出前处理器
+FINISH
+
+! 9. 进入求解器
+/SOLU
+ANTYPE, MODAL          ! 指定模态分析类型
+MODOPT, LANB, 100       ! 使用分块Lanczos法，提取前10阶模态
+MXPAND, 100             ! 扩展10阶模态
+LUMPM, OFF             ! 使用一致质量矩阵（默认）
+SOLVE                  ! 开始求解
+FINISH
+
+! 10. 后处理
+/POST1
+SET, LIST              ! 列出所有频率
+! 查看各阶模态振型
+! SET, FIRST             ! 读入第一阶模态
+! PLDISP, 2              ! 显示变形图（重叠于未变形模型）

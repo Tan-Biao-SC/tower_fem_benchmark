@@ -1,0 +1,131 @@
+! /SOLU
+! ANTYPE, STATIC
+
+! 1. create arrays to store the displacements at the leg tips
+*dim,tip_ux,array,6
+*dim,tip_uy,array,6
+*dim,tip_uz,array,6
+*dim,tip_rx,array,6
+*dim,tip_ry,array,6
+*dim,tip_rz,array,6
+
+! n1 = 1000+num_leg_nodes
+! n2 = 2000+num_leg_nodes
+! n3 = 3000+num_leg_nodes
+! n4 = 4000+num_leg_nodes
+
+*do,icase,1,6,1
+    /SOLU
+    ANTYPE, STATIC
+    allsel,all
+    fdele,all,all
+
+    *if,icase,eq,1,then
+        f,99999,fx,1e3
+    *elseif,icase,eq,2,then
+        f,99999,fy,1e3
+    *elseif,icase,eq,3,then
+        f,99999,fz,1e3
+    *elseif,icase,eq,4,then
+        f,99999,mx,1e3
+    *elseif,icase,eq,5,then
+        f,99999,my,1e3
+    *elseif,icase,eq,6,then
+        f,99999,mz,1e3
+    *endif
+    ! *if,icase,eq,1,then
+    !     f,n1,fx,1e3/4
+    !     f,n2,fx,1e3/4
+    !     f,n3,fx,1e3/4
+    !     f,n4,fx,1e3/4
+    ! *elseif,icase,eq,2,then
+    !     f,n1,fy,1e3/4
+    !     f,n2,fy,1e3/4
+    !     f,n3,fy,1e3/4
+    !     f,n4,fy,1e3/4
+    ! *elseif,icase,eq,3,then
+    !     f,n1,fz,1e3/4
+    !     f,n2,fz,1e3/4
+    !     f,n3,fz,1e3/4
+    !     f,n4,fz,1e3/4
+    ! *elseif,icase,eq,4,then
+    !     f,n1,fy,-1e3/2/Ld
+    !     f,n2,fz,-1e3/2/Ld
+    !     f,n3,fy,1e3/2/Ld
+    !     f,n4,fz,1e3/2/Ld
+    ! *elseif,icase,eq,5,then
+    !     f,n1,fx,1e3/2/Ld
+    !     f,n2,fx,1e3/2/Ld
+    !     f,n3,fx,-1e3/2/Ld
+    !     f,n4,fx,-1e3/2/Ld
+    ! *elseif,icase,eq,6,then
+    !     f,n1,fx,1e3/2/Ld
+    !     f,n2,fx,-1e3/2/Ld
+    !     f,n3,fx,-1e3/2/Ld
+    !     f,n4,fx,1e3/2/Ld
+    ! *endif
+    solve
+    finish
+
+    /POST1
+    set,last
+    *get,tip_ux(icase),NODE,99999,U,X
+    *get,tip_uy(icase),NODE,99999,U,Y
+    *get,tip_uz(icase),NODE,99999,U,Z
+    *get,tip_rx(icase),NODE,99999,ROT,X
+    *get,tip_ry(icase),NODE,99999,ROT,Y
+    *get,tip_rz(icase),NODE,99999,ROT,Z
+
+    ! *get, u1x, NODE, n1, U, X
+    ! *get, u2x, NODE, n2, U, X
+    ! *get, u3x, NODE, n3, U, X
+    ! *get, u4x, NODE, n4, U, X
+
+    ! *get, u1y, NODE, n1, U, Y
+    ! *get, u2y, NODE, n2, U, Y
+    ! *get, u3y, NODE, n3, U, Y
+    ! *get, u4y, NODE, n4, U, Y
+
+    ! *get, u1z, NODE, n1, U, Z
+    ! *get, u2z, NODE, n2, U, Z
+    ! *get, u3z, NODE, n3, U, Z
+    ! *get, u4z, NODE, n4, U, Z
+
+    ! tip_ux(icase) = (u1x+u2x+u3x+u4x)/4.0
+    ! tip_uy(icase) = (u1y+u2y+u3y+u4y)/4.0
+    ! tip_uz(icase) = (u1z+u2z+u3z+u4z)/4.0
+    ! ! --- 转角位移：由截面刚体运动学推导 ---
+    ! ! ROTX（扭转）: 由 YZ 平面内四角微分位移计算
+    ! ! 刚体截面绕 X 扭转 θx 时: ΔUY = -z·θx, ΔUZ = y·θx
+    ! ! 从 UY 差分: θx = [(UY_z-) - (UY_z+)] / Ld
+    ! ! 从 UZ 差分: θx = [(UZ_y+) - (UZ_y-)] / Ld
+    ! tip_rx(icase) = (u1y+u2y-u3y-u4y+u2z+u3z-u1z-u4z)/(4.0*Ld)
+
+    ! ! ROTY（绕 Y 弯曲）: 由上下截面轴向位移差推导
+    ! ! UX(z=+Ld/2) - UX(z=-Ld/2) = θy * Ld
+    ! tip_ry(icase) = -(u1x+u2x-u3x-u4x)/(2.0*Ld)
+
+    ! ! ROTZ（绕 Z 弯曲）: 由左右截面轴向位移差推导
+    ! ! UX(y=-Ld/2) - UX(y=+Ld/2) = θz * Ld  →  ΔUX = -θz·Δy
+    ! tip_rz(icase) = (u1x+u4x-u2x-u3x)/(2.0*Ld)
+    finish
+*enddo
+
+! 写到文件——一次 *vwrite，6 个数组各 6 个元素，产出 6 行
+*dim,cc,char,6,2
+cc(1)='FX'
+cc(2)='FY'
+cc(3)='FZ'
+cc(4)='RX'
+cc(5)='RY'
+cc(6)='RZ'
+
+/delete,tip_disp_xx_n_%sub_segments%_N_%num_segments%,txt
+*cfopen,tip_disp_xx_n_%sub_segments%_N_%num_segments%,txt
+*vwrite
+('load_case,ux,uy,uz,rx,ry,rz')
+*vwrite,cc(1),tip_ux(1),tip_uy(1),tip_uz(1),tip_rx(1),tip_ry(1),tip_rz(1)
+(A2,',',E12.5,',',E12.5,',',E12.5,',',E12.5,',',E12.5,',',E12.5)
+*cfclose
+
+FINISH

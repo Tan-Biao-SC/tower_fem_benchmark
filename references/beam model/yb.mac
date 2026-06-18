@@ -1,0 +1,66 @@
+!!!!!!!beam188应变的提取
+/post1       !!!!!!!!进入通用后处理
+*get,wyb1,elem,143,smisc,42  !!!提取弯曲应变
+!!!!!!!beam188应变的提取
+/post1       !!!!!!!!进入通用后处理
+*get,wyb1,elem,143,smisc,42  !!!提取弯曲应变
+*get,wyb2,elem,143,smisc,43  !!!提取弯曲应变
+*get,zyb,elem,143,smisc,41
+total=wyb1+zyb
+!!!!!!!beam188应变的提取
+/post1       !!!!!!!!进入通用后处理
+lSEL,S,,,143
+ALLSEL,BELOW,LINE
+etable,bending strain1,smisc,42
+pletab,bending strain1 ,noav
+!!!!!!!beam188应变的提取
+/post1       !!!!!!!!进入通用后处理
+lSEL,S,,,909
+ALLSEL,BELOW,LINE
+!etable,bending strain1,smisc,42   !!!!!!!定义弯曲应变单元表
+!etable,bending strain2,smisc,43
+etable,axial strain,smisc,41      !!!!!!!定义轴向应变单元表
+pletab,axial strain ,noav
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+!!!!!!!beam188轴向应变的提取
+/post1       !!!!!!!!进入通用后处理
+lSEL,S,,,143
+!lSEL,a,,,585
+ALLSEL,BELOW,LINE
+etable,axial strain ,smisc,42     !!!!!!!定义轴应变单元表
+!etable,axial strain ,smisc,20
+pletab,axial strain,noav        !!!!!!!显示单元轴向应变
+pretab,axial strain
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+/DIST,1,1.08222638492,1
+/REP,FAST
+Fnc_/EXIT
+Fnc_/EXIT
+Fnc_/EXIT
+Fnc_/EXIT
+Fnc_/EXIT
+Fnc_/EXIT
+Fnc_/EXIT
+Fnc_/EXIT

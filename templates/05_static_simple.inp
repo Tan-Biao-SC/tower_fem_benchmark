@@ -1,0 +1,95 @@
+! =============================================================================
+! Static Analysis: Simple Support (Hinge-Hinge) Beam — Distributed Loading
+! - Applies 6 load cases (FX, FY, FZ, MX, MY, MZ = 1e3 total) uniformly
+!   distributed across ALL cross-section center nodes (5000+1..5000+NUM_NODE_PLANES)
+! - Extracts 6-DOF displacements at EVERY center node for each load case
+! - Prerequisite: 04_b_bc_simple.inp must be concatenated before this file
+! - Output: __CASE_NAME_VAL___simple.txt (in ANSYS working directory)
+! - Each load case produces NUM_NODE_PLANES data rows
+! =============================================================================
+FINISH
+
+! Force per node: total 1e3 divided equally among all center nodes
+FORCE_PER_NODE=1e3
+
+! 2D arrays: dimension 1 = load case (1..6), dimension 2 = node index (1..NUM_NODE_PLANES)
+*DIM,DISP_Ux,ARRAY,6,NUM_NODE_PLANES
+*DIM,DISP_Uy,ARRAY,6,NUM_NODE_PLANES
+*DIM,DISP_Uz,ARRAY,6,NUM_NODE_PLANES
+*DIM,DISP_Rx,ARRAY,6,NUM_NODE_PLANES
+*DIM,DISP_Ry,ARRAY,6,NUM_NODE_PLANES
+*DIM,DISP_Rz,ARRAY,6,NUM_NODE_PLANES
+
+! Load case loop: FX, FY, FZ, MX, MY, MZ
+*do, icase, 1, 6, 1
+    /SOLU
+    ANTYPE, STATIC
+    ALLSEL, ALL
+    FDELE, ALL, ALL
+
+    ! Apply uniform force/moment across all center nodes
+    *do, I, 1, NUM_NODE_PLANES, 1
+        *if, icase, eq, 1, then
+            F, I+5000, FX, FORCE_PER_NODE
+        *elseif, icase, eq, 2, then
+            F, I+5000, FY, FORCE_PER_NODE
+        *elseif, icase, eq, 3, then
+            F, I+5000, FZ, FORCE_PER_NODE
+        *elseif, icase, eq, 4, then
+            F, I+5000, MX, FORCE_PER_NODE
+        *elseif, icase, eq, 5, then
+            F, I+5000, MY, FORCE_PER_NODE
+        *elseif, icase, eq, 6, then
+            F, I+5000, MZ, FORCE_PER_NODE
+        *endif
+    *enddo
+
+    SOLVE
+    FINISH
+
+    /POST1
+    SET, LAST
+
+    ! Extract displacements at all center nodes for this load case
+    *do, I, 1, NUM_NODE_PLANES, 1
+        *get, disp_ux(icase, I), NODE, I+5000, U, X
+        *get, disp_uy(icase, I), NODE, I+5000, U, Y
+        *get, disp_uz(icase, I), NODE, I+5000, U, Z
+        *get, disp_rx(icase, I), NODE, I+5000, ROT, X
+        *get, disp_ry(icase, I), NODE, I+5000, ROT, Y
+        *get, disp_rz(icase, I), NODE, I+5000, ROT, Z
+    *enddo
+    FINISH
+*enddo
+
+! Write results to file: one row per (load_case, node) combination
+! Write results to file
+*DIM,COLS,CHAR,6,2
+COLS(1)='FX'
+COLS(2)='FY'
+COLS(3)='FZ'
+COLS(4)='RX'
+COLS(5)='RY'
+COLS(6)='RZ'
+
+/DELETE,__CASE_NAME_VAL___simple,txt
+*CFOPEN,__CASE_NAME_VAL___simple,txt
+*VWRITE
+('load_case, node, ux, uy, uz, rx, ry, rz')
+
+*do, icase, 1, 6, 1
+    *do, I, 1, NUM_NODE_PLANES, 1
+        COL=COLS(icase)
+        VUX=disp_ux(icase,I)
+        VUY=disp_uy(icase,I)
+        VUZ=disp_uz(icase,I)
+        VRX=disp_rx(icase,I)
+        VRY=disp_ry(icase,I)
+        VRZ=disp_rz(icase,I)
+        *VWRITE, COL, I, VUX, VUY, VUZ, VRX, VRY, VRZ
+        (A2, ',', F5.0, 6(',', E12.5))
+    *enddo
+*enddo
+
+*CFCLOS
+FINISH

@@ -1,0 +1,46 @@
+FINISH
+NUMMODES=100
+
+! ============================================================
+! 1. 求解：模态分析
+! ============================================================
+/SOLU
+ANTYPE, MODAL              ! 模态分析
+MODOPT, LANB, NUMMODES           ! Block Lanczos，提取前 100 阶
+MXPAND, NUMMODES                 ! 扩展 100 阶
+LUMPM, OFF                  ! 一致质量矩阵
+SOLVE
+FINISH
+
+! ============================================================
+! 2. 后处理：提取所有频率并保存到文件
+! ============================================================
+/POST1
+
+! 获取实际提取到的模态阶数（等于结果文件中的数据集数）
+*get, n_modes, ACTIVE, 0, SET, NSET
+
+! 逐阶读取并存入数组
+*dim, freq_arr, array, n_modes
+*do, i, 1, n_modes, 1
+    set, 1, i
+    *get, freq_arr(i), MODE, i, FREQ
+*enddo
+
+! 创建索引数组（用于写入）
+*dim, mode_idx, array, n_modes
+*do, i, 1, n_modes, 1
+    mode_idx(i) = i
+*enddo
+
+! 写入 CSV 文件
+/delete, modal_freq, txt
+*cfopen, modal_freq, txt
+*vwrite
+('Mode,Frequency(Hz)')
+*vwrite, mode_idx(1), freq_arr(1)
+(F8.0,',',E15.8)
+*cfclose
+
+! 回显结果
+FINISH

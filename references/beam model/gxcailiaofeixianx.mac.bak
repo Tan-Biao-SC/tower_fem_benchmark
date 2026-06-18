@@ -1,0 +1,236 @@
+Finish
+/Clear,start
+/UNITS,SI
+/Com,stuctural
+/Filename,beam model
+/TITLE,beam model
+/prep7
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 单元类型
+ET, 1, beam188
+ET, 2 ,LINK10
+
+!!!!!!!!!!!!!!!!!!!主桁架
+MP,   EX, 1, 2.06e11,   
+MP, DENS, 1, 7850*1.154,
+MP, NUXY, 1, 0.3,
+MP,ALPX, 1, 1.2e-5,
+TB,BISO,1,1,2,
+TBDATA,,235E6,0,,,,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 材料1（拉线）拉线 2*37-28.0-1470-B    580kN   464.95e-6   3.8706kg/m   2根
+MP,   EX, 2, 1.85e11,   
+MP, DENS, 2, 3.8706/464.95e-6
+MP, NUXY, 2, 0.3,
+MP,ALPX,2,1.15e-5,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 材料2（钢索）1*37-28-1470-B       19.7kN，14.92e-6, 0.1242kg/m
+MP,   EX, 3, 1.85e11,       
+MP, DENS, 3, 3.8706/464.95e-6
+MP, NUXY, 3, 0.3,
+MP,ALPX,3,1.2e-5,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 材料3（悬索） 2*37-28.0-1470-B        3根
+MP,   EX, 4, 1.85e11,   
+MP, DENS, 4, 3.8706/464.95e-6
+MP, NUXY, 4, 0.3,
+MP,ALPX,4,1.15e-5,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 绝缘子3
+MP,   EX, 5, 1.85e11,   
+MP, DENS, 5, 2060/15.24/1e-3,
+MP, NUXY, 5, 0.3,
+MP,ALPX,5,1.15e-5,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 导线弹性系数
+MP,   EX, 6, 0.606e11,   
+MP, DENS, 6, 3.1/1045.38e-6,
+MP, NUXY, 6, 0.3,
+MP,ALPX,6,1.15e-5,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 地线弹性系数
+MP,   EX, 7, 1.47e11,   
+MP, DENS, 7, 1.088/162.877e-6,
+MP, NUXY, 7, 0.3,
+MP, ALPX, 7,1.15e-5,
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L140X10
+
+SECTYPE,   1, BEAM, L, , 0  
+SECOFFSET, CENT 
+SECDATA,0.14,0.14,0.010,0.010,0,0,0,0,0,0,0,0  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L160X12
+
+SECTYPE,   2, BEAM, L, , 0  
+SECOFFSET, CENT 
+SECDATA,0.16,0.16,0.012,0.012,0,0,0,0,0,0,0,0
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L160X14
+SECTYPE,   3, BEAM, L, , 0  
+SECOFFSET, CENT 
+SECDATA,0.16,0.16,0.014,0.014,0,0,0,0,0,0,0,0
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L75X5
+SECTYPE,   4, BEAM, L, , 0  
+SECOFFSET, CENT 
+SECDATA,0.075,0.075,0.005,0.005,0,0,0,0,0,0,0,0  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L80X8
+SECTYPE,   5, BEAM, L, , 0  
+SECOFFSET, CENT 
+SECDATA,0.080,0.080,0.006,0.006,0,0,0,0,0,0,0,0 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L80X6
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!L56X5
+SECTYPE,   6, BEAM, L, , 0  
+SECOFFSET, CENT 
+SECDATA,0.056,0.056,0.005,0.005,0,0,0,0,0,0,0,0 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!拉线
+
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!实常数
+R,1
+R,2
+R,3
+R,4
+R,5
+R,6
+!!!!!!!!!!!!!!!!!!!!
+!xuansuocyb=0.01
+R,7,2*464.95e-6, 0.01*800/1.85e5                  !!!cable
+R,8, 464.95e-6, 0.6*800/1.85e5                 !!gangsuo
+R,9,1e-3,0.001                  !!!insulator
+!lasuocyb=0.16
+R,10,2*464.95e-6, 0.4*800/1.85e5               !!!!!!laxian
+R,11,6*1045.38e-6, 1*54324/1045.38e-6/0.606e11      !! 导线
+R,12, 162.877e-6, 1*33594/ 162.877e-6/1.47e11           !!地线
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!建模
+!!!!!!!!!!!!!!!!!钢构
+LSEL,none
+L140X10
+LATT,1,1,1,,,,1
+CM,L140X10,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+L160X12
+LATT,1,2,1,,,,2
+CM,L160X12,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+L160X14
+LATT,1,3,1,,,,3
+CM,L160X14,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+L75X5
+LATT,1,4,1,,,,4
+CM,L75X5,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+L80X6
+LATT,1,5,1,,,,5
+CM,L80X6,LINE
+!!!!!!!!!!!!!!!!
+
+LSEL,none
+L56X5
+LATT,1,6,1,,,,6
+CM,L56X5,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+xuansuo
+LATT,4,7,2
+CM,xuansuo,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+jueyuanzi
+LATT,5,9,2
+CM,jueyuanzi,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+LAXIAN
+LATT,2,10,2
+CM,LAXIAN,LINE
+!!!!!!!!!!!!!!!!
+LSEL,none
+GANGSUO
+LATT,3,8,2
+CM,GANGSUO,LINE
+!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!
+!LSEL,none
+!DAOXIAN
+!LATT,6,11,2
+!CM,DAOXIAN,LINE
+!!!!!!!!!!!!!!!
+!LSEL,none
+!DIXIAN
+!LATT,7,12,2
+!CM,DIXIAN,LINE
+!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ALLSEL,ALL
+CMSEL,S,L75X5
+CMSEL,A,L80X6
+CMSEL,A,L56X5
+CMSEL,A,L140X10
+CMSEL,A,L160X12
+CMSEL,A,L160X14
+ALLSEL,BELOW,LINE
+NUMMRG,KP,0.007,0.007
+ALLSEL,ALL
+CMSEL,S,xuansuo
+CMSEL,A,GANGSUO
+CMSEL,A,jueyuanzi
+CMSEL,A,LAXIAN
+ALLSEL,BELOW,LINE
+NUMMRG,KP,0.007,0.007
+!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 划分网格
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 划分网格
+ALLSEL,ALL
+CMSEL,S,xuansuo
+CMSEL,A,GANGSUO
+!CMSEL,A,DAOXIAN
+!CMSEL,A,DIXIAN
+LESIZE,all, , ,1, , , , ,1
+CMSEL,S,jueyuanzi
+LESIZE,all, , ,2, , , , ,1
+CMSEL,S,L75X5
+CMSEL,A,L80X6
+CMSEL,A,L56X5
+CMSEL,A,L140X10
+CMSEL,A,L160X12
+CMSEL,A,L160X14
+LESIZE,all, , ,1, , , , ,1
+CMSEL,S,LAXIAN
+LESIZE,all, , ,20, , , , ,1
+ALLSEL,ALL
+LMESHE,ALL
+!!!!!!!!!!!!!!!!!先耦合Y向
+CPINTF,UX,0.007
+CPINTF,UY,0.007
+CPINTF,UZ,0.007
+!!!!!!!!!!!!!!!!!再耦合主体钢结构
+!NMODIF,1, , , ,-7.8
+!NMODIF,27, , , ,7.8
+NSEL,S,LOC,Y, 0
+D,all,UX,0
+D,ALL,UY,0
+D,ALL,UZ,0
+
+NSEL,S,LOC,Y, 0
+NSEL,R,LOC,Z, 0
+D,ALL,ROTY,0
+
+
+
+
+!!!!!!!!!!!!!!!!!!这一段表示约束结束
+ALLSEL,ALL
+NUMCMP,NODE 
+NUMCMP,ELEM 
+NUMCMP,KP   
+NUMCMP,LINE 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ALLSEL,ALL
+!save
+FINI
+!DTTIMEHIST
+!POSTSHICHENGFX
+
+

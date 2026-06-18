@@ -1,0 +1,39 @@
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated ANSYS cases/results/figures
+cases/
+results/
+figures/
+
+# Local scratch/test run artifacts
+test/
+
+# ANSYS generated files
+*.db
+*.DB
+*.dbb
+*.DSP
+*.emat
+*.esav
+*.full
+*.rst
+*.mlv
+*.mode
+*.mntr
+*.stat
+*.out
+*.err
+*.log
+*.page
+*.MATRIX
+*.mapping
+
+# External/generated binaries and archives
+*.exe
+*.zip
+*.dwg
+*.dwl
+*.dwl2

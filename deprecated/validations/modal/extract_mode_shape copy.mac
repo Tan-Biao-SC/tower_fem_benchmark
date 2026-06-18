@@ -1,0 +1,160 @@
+FINISH
+
+! ============================================================
+! 模态振型提取与可视化
+! 使用说明：修改 target_mode 选择目标模态阶数
+! 前置条件：已依次运行 model.mac → modal_analysis.mac
+! ============================================================
+
+target_mode = 14         ! <--- 修改此处选择要查看的模态阶数
+
+! 从模型中自动获取结构参数
+/POST1
+
+! Lb（截面宽度）: 从节点 2001 的 Y 坐标推导
+*get, y_2001, NODE, 2001, LOC, Y
+Lb = 2.0 * abs(y_2001)
+
+! Ll（节间长度）: 从相邻两节点 X 坐标差推导
+*get, x_1001, NODE, 1001, LOC, X
+*get, x_1002, NODE, 1002, LOC, X
+Ll = x_1002 - x_1001
+
+! num_leg_nodes: 总节点数减去 2 个主节点(19999, 99999), 除以 4 条腿
+*get, ncount, NODE, 0, COUNT
+num_leg_nodes = (ncount - 2) / 4
+
+! 获取实际提取的模态总数（等于结果文件中的数据集数）
+*get, n_modes, ACTIVE, 0, SET, NSET
+*if, target_mode, GT, n_modes, THEN
+    target_mode = n_modes
+*endif
+
+SET, 1, target_mode
+*get, cur_freq, MODE, target_mode, FREQ
+
+! ============================================================
+! Part 1: 四视角模态振型图
+! ============================================================
+! 定义 4 个子窗口：左上、右上、左下、右下
+/WINDOW, 1, LTOP
+/WINDOW, 2, RTOP
+/WINDOW, 3, LBOT
+/WINDOW, 4, RBOT
+
+/WINDOW, 1, ON
+/WINDOW, 2, ON
+/WINDOW, 3, ON
+/WINDOW, 4, ON
+
+! 视角 1: 等轴测
+/VIEW, 1, 1, 1, 1
+/ANGLE, 1
+
+! 视角 2: XY 平面（正面，视线沿 +Z）
+/VIEW, 2, 0, 0, 1
+/ANGLE, 2
+
+! 视角 3: XZ 平面（侧面，视线沿 -Y）
+/VIEW, 3, 0, -1, 0
+/ANGLE, 3
+
+! 视角 4: YZ 平面（顶部俯视，视线沿 -X）
+/VIEW, 4, -1, 0, 0
+/ANGLE, 4
+
+! 自动缩放变形比例
+/DSCALE, 1, AUTO
+
+! 绘制振型（在全部 4 个窗口中）
+PLDISP, 2
+
+! 输出 PNG 图片
+/SHOW, PNG
+PLDISP, 2
+/SHOW, CLOSE
+
+! 恢复单窗口显示
+/WINDOW, 1, FULL
+/WINDOW, 2, OFF
+/WINDOW, 3, OFF
+/WINDOW, 4, OFF
+
+! ============================================================
+! Part 2: 中性轴模态位移提取
+! ============================================================
+! 中性轴定义：截面中心线，y=0, z=0，沿 x 方向
+! 每个 x 截面取 4 条腿节点的位移平均值
+
+! 创建存储数组
+*dim, neut_x,  array, num_leg_nodes
+*dim, neut_ux, array, num_leg_nodes
+*dim, neut_uy, array, num_leg_nodes
+*dim, neut_uz, array, num_leg_nodes
+*dim, neut_rx, array, num_leg_nodes
+*dim, neut_ry, array, num_leg_nodes
+*dim, neut_rz, array, num_leg_nodes
+
+*do, i, 1, num_leg_nodes+1, 1
+    n1 = 1000 + i
+    n2 = 2000 + i
+    n3 = 3000 + i
+    n4 = 4000 + i
+
+    neut_x(i) =(i-1)*Ll
+
+    ! --- 平动位移：4 节点平均 ---
+    *get, u1x, NODE, n1, U, X
+    *get, u2x, NODE, n2, U, X
+    *get, u3x, NODE, n3, U, X
+    *get, u4x, NODE, n4, U, X
+    neut_ux(i) = (u1x+u2x+u3x+u4x)/4.0
+
+    *get, u1y, NODE, n1, U, Y
+    *get, u2y, NODE, n2, U, Y
+    *get, u3y, NODE, n3, U, Y
+    *get, u4y, NODE, n4, U, Y
+    neut_uy(i) = (u1y+u2y+u3y+u4y)/4.0
+
+    *get, u1z, NODE, n1, U, Z
+    *get, u2z, NODE, n2, U, Z
+    *get, u3z, NODE, n3, U, Z
+    *get, u4z, NODE, n4, U, Z
+    neut_uz(i) = (u1z+u2z+u3z+u4z)/4.0
+
+    ! --- 转角位移：由截面刚体运动学推导 ---
+    ! ROTX（扭转）: 由 YZ 平面内四角微分位移计算
+    ! 刚体截面绕 X 扭转 θx 时: ΔUY = -z·θx, ΔUZ = y·θx
+    ! 从 UY 差分: θx = -[(UY_z+ - UY_z-) / Lb]
+    ! 从 UZ 差分: θx =  [(UZ_y+ - UZ_y-) / Lb]
+    neut_rx(i) = (u1y+u2y-u3y-u4y+u2z+u3z-u1z-u4z)/(4.0*Lb)
+
+    ! ROTY（绕 Y 弯曲）: 由上下截面轴向位移差推导
+    ! UX(z=+Lb/2) - UX(z=-Lb/2) = θy * Lb
+    neut_ry(i) = (u3x+u4x-u1x-u2x)/(2.0*Lb)
+
+    ! ROTZ（绕 Z 弯曲）: 由左右截面轴向位移差推导
+    ! UX(y=+Lb/2) - UX(y=-Lb/2) = -θz * Lb
+    neut_rz(i) = (u1x+u4x-u2x-u3x)/(2.0*Lb)
+*enddo
+
+! 创建序号数组
+*dim, idx_arr, array, num_leg_nodes
+*do, i, 1, num_leg_nodes+1, 1
+    idx_arr(i)=i
+*enddo
+
+! 输出到 CSV 文件（文件名含模态号，避免多次运行覆盖）
+/delete, neutral_axis_mode_%target_mode%, txt
+*cfopen, neutral_axis_mode_%target_mode%, txt
+*vwrite, cur_freq
+('Mode frequency = ', E12.5, ' Hz')
+*vwrite
+(' ')
+*vwrite
+('Station,X(m),UX,UY,UZ,ROTX,ROTY,ROTZ')
+*vwrite, idx_arr(1), neut_x(1), neut_ux(1), neut_uy(1), neut_uz(1), neut_rx(1), neut_ry(1), neut_rz(1)
+(F6.0,',',F8.4,6(',',E12.5))
+*cfclose
+
+FINISH

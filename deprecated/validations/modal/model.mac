@@ -1,0 +1,141 @@
+finish
+/clear
+!采用国际单位制：N、kg、m、s
+
+!Nodes on one leg
+num_segments=5
+sub_segments=10
+num_leg_nodes=num_segments*sub_segments+1
+
+/prep7
+! 将黑色背景改为白色：
+/RGB,INDEX,100,100,100, 0   
+/RGB,INDEX, 80, 80, 80,13   
+/RGB,INDEX, 60, 60, 60,14   
+/RGB,INDEX, 0, 0, 0,15  
+/REPLOT
+
+! 1. create nodes
+Ll=1.0115
+Lb=2.0
+*do,i,1,num_leg_nodes,1
+    x=(i-1)*Ll
+    
+    nid=i+1000
+    n, nid, x, -Lb/2.0, -Lb/2.0
+
+    nid=i+2000
+    n, nid, x, Lb/2.0, -Lb/2.0
+
+    nid=i+3000
+    n, nid, x, Lb/2.0, Lb/2.0
+
+    nid=i+4000
+    n, nid, x, -Lb/2.0, Lb/2.0
+*enddo
+
+
+
+! 2. Define materials, elements, sections
+! (1) element types
+! et,1,beam188
+et, 1, beam4        ! legs and diaphragms
+et,2,link180        ! braces
+
+! (2) materials for all elements
+uimp,1,ex,prxy,dens,2.06E11,0.31,7850
+mp,alpx,1,0.000012
+
+! (3) sections 
+sectype,1,beam,L    ! Leg
+secdata,0.16,0.16,0.014,0.014
+
+sectype,2,beam,L    ! Diaphragm
+secdata,0.08,0.08,0.006,0.006
+
+! (4) Real numbers
+r,1,7.412e-4           ! Brace
+r,11, 4.2978e-3, 1.251e-5 , 1.251e-5 , , , ,
+rmore, , 3.96e-7, 0, 0
+
+! Diaphragms
+r,12, 9.397e-4, 60.24e-8, 60.24e-8, , , ,
+rmore, , 0.461e-8, 0, 0
+
+! 3. Create elements
+! (1) legs
+type,1
+mat,1
+! secnum,1
+real,11
+offset1=1000
+offset2=2000
+offset3=3000
+offset4=4000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset1,i+offset1,i+1+offset1
+    en,i+offset2,i+offset2, i+1+offset2
+    en,i+offset3,i+offset3, i+1+offset3
+    en,i+offset4,i+offset4, i+1+offset4
+*enddo
+
+! (2) diaphragm members
+type,1
+mat,1
+secnum, 2
+real,12
+*do,i,1,num_segments+1,1
+    di=(i-1)*sub_segments+1
+    en, 5001+di, di+1000, di+2000
+    en, 5202+di, di+2000, di+3000
+    en, 5403+di, di+3000, di+4000
+    en, 5604+di, di+4000, di+1000
+    en, 5805+di, di+1000, di+3000
+    en, 6006+di, di+2000, di+4000
+*enddo
+
+! (3) brace members
+type,2
+mat,1
+real,1
+*do,i,1,num_leg_nodes-1,2
+    en,7000+i,i+2000,i+1+1000
+    en,7500+i,i+3000,i+1+2000
+    en,8000+i,i+4000,i+1+3000
+    en,8500+i,i+1000,i+1+4000
+*enddo
+
+*do,i,2,num_leg_nodes-1,2
+    en,9000+i,i+1000,i+1+2000
+    en,9500+i,i+2000,i+1+3000
+    en,10000+i,i+3000,i+1+4000
+    en,10500+i,i+4000,i+1+1000
+*enddo
+
+! No boundary conditions are applied here
+! Just analysis the natural frequencies of the truss itself
+
+! 4. 中性轴 CERIG 主节点线（用于振型位移提取）
+! 每个截面的 4 个角点刚接到截面中心点 (x, 0, 0)
+! 主节点的 6 自由度 = 截面刚体运动，无需手工反算
+et, 3, mass21
+keyopt, 3, 3, 2          ! 3-D mass with rotary inertia (6 DOFs)
+r, 3, 1e-12, 1e-12, 1e-12, 1e-12, 1e-12, 1e-12
+
+type, 3
+real, 3
+*do, i, 1, num_leg_nodes, 1
+    mast_id = 20000 + i
+    n, mast_id, (i-1)*Ll, 0, 0
+    en, mast_id, mast_id
+
+    cerig, mast_id, 1000+i, all
+    cerig, mast_id, 2000+i, all
+    cerig, mast_id, 3000+i, all
+    cerig, mast_id, 4000+i, all
+*enddo
+allsel, all
+
+
+! 9. 退出前处理器
+FINISH

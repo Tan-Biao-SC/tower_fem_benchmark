@@ -1,0 +1,28 @@
+! =============================================================================
+! Brace members ()
+! - Following the "diaph.inp" file
+! - For x-brace tower, the brace members are: |xxxxxx|
+! =============================================================================
+! Brace members properties (Defined in "basic_model.inp")
+! - Element: LINK180 
+! - Section: real constant number 3
+TYPE,2
+MAT,1
+REAL,3
+
+*DO,I,1,NUM_NODE_PLANES-1,2
+    EN,MAX_ELEM_NUM+I+1000,2000+I,1000+I+1
+    EN,MAX_ELEM_NUM+I+2000,3000+I,2000+I+1
+    EN,MAX_ELEM_NUM+I+3000,4000+I,3000+I+1
+    EN,MAX_ELEM_NUM+I+4000,1000+I,4000+I+1
+*ENDDO
+
+*DO,I,2,NUM_NODE_PLANES-1,2
+    EN,MAX_ELEM_NUM+I+5000,1000+I,2000+I+1
+    EN,MAX_ELEM_NUM+I+6000,2000+I,3000+I+1
+    EN,MAX_ELEM_NUM+I+7000,3000+I,4000+I+1
+    EN,MAX_ELEM_NUM+I+8000,4000+I,1000+I+1
+*ENDDO
+MAX_ELEM_NUM=MAX_ELEM_NUM+1000
+ALLSEL,ALL,ALL
+FINISH

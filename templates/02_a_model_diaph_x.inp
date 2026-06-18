@@ -1,0 +1,22 @@
+! =============================================================================
+! Diaphragm members (X-Braced)
+! - Following the "basic_model.inp" file
+! =============================================================================
+! Diaphragm members properties (Defined in "basic_model.inp")
+! - Element: BEAM188 
+! - Section: 2
+TYPE,1
+MAT,1
+SECNUM,2
+! REAL,2
+! Assume that the element numbers of each diaphragm < 100
+*DO,I,1,NUM_SECTIONS+1,1
+    DI=(I-1)*NUM_SUB_SECTIONS+1
+    EN,MAX_ELEM_NUM+DI+100,1000+DI,2000+DI
+    EN,MAX_ELEM_NUM+DI+200,2000+DI,3000+DI
+    EN,MAX_ELEM_NUM+DI+300,3000+DI,4000+DI
+    EN,MAX_ELEM_NUM+DI+400,4000+DI,1000+DI
+    EN,MAX_ELEM_NUM+DI+500,1000+DI,3000+DI
+    EN,MAX_ELEM_NUM+DI+600,2000+DI,4000+DI
+*ENDDO
+MAX_ELEM_NUM=MAX_ELEM_NUM+1000

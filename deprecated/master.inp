@@ -1,0 +1,160 @@
+FINISH
+/CLEAR, START
+! ========== Python替换区：只替换等号右侧的 __XXX_VAL__ ==========
+! 总塔高
+TH       = __TH_VAL__ 
+! 截面宽度
+SW       = __SW_VAL__   
+! 周期单元数量
+NP       = __NP_VAL__
+! 周期单元内子节间数量
+NC       = __NC_VAL__
+
+! 节间长度
+LL       = TH/NP/NC
+
+!LB       = __LB_VAL__
+!CASE_NAME = __CASE_NAME_VAL__
+
+num_segments = NP
+sub_segments = NC
+num_leg_nodes = num_segments*sub_segments + 1
+
+/prep7
+/RGB,INDEX,100,100,100, 0   
+/RGB,INDEX, 80, 80, 80,13   
+/RGB,INDEX, 60, 60, 60,14   
+/RGB,INDEX, 0, 0, 0,15  
+/REPLOT
+
+! 建立节点
+*do,i,1,num_leg_nodes,1
+    nid=i+1000
+    x=(i-1)*LL
+    y=-SW/2.0
+    z=-SW/2.0
+    n,nid,x,y,z
+*enddo
+
+*do,i,1,num_leg_nodes,1
+    nid=i+2000
+    x=(i-1)*LL
+    y=SW/2.0
+    z=-SW/2.0
+    n,nid,x,y,z
+*enddo
+
+*do,i,1,num_leg_nodes,1
+    nid=i+3000
+    x=(i-1)*LL
+    y=SW/2.0
+    z=SW/2.0
+    n,nid,x,y,z
+*enddo
+
+*do,i,1,num_leg_nodes,1
+    nid=i+4000
+    x=(i-1)*LL
+    y=-SW/2.0
+    z=SW/2.0
+    n,nid,x,y,z
+*enddo
+
+! 材料、单元、截面
+et,1,beam4
+et,2,link180
+
+uimp,1,ex,prxy,dens,2.06E11,0.31,7850
+mp,alpx,1,0.000012
+
+r,1,7.412e-4           ! Brace
+r,11,4.2978e-3,1.251e-5,1.251e-5,,,,
+rmore,,3.96e-7,0,0
+r,12,9.397e-4,60.24e-8,60.24e-8,,,,
+rmore,,0.461e-8,0,0
+
+! 纵梁
+type,1
+mat,1
+real,11
+offset=1000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset,i+1+offset
+*enddo
+offset=2000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset,i+1+offset
+*enddo
+offset=3000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset,i+1+offset
+*enddo
+offset=4000
+*do,i,1,num_leg_nodes-1,1
+    en,i+offset,i+offset,i+1+offset
+*enddo
+
+! 横隔构件 (diaphragm)
+type,1
+mat,1
+real,12
+*do,i,1,num_segments+1,1
+    di=(i-1)*sub_segments+1
+    en,5001+di,di+1000,di+2000
+    en,5202+di,di+2000,di+3000
+    en,5403+di,di+3000,di+4000
+    en,5604+di,di+4000,di+1000
+    en,5805+di,di+1000,di+3000
+    en,6006+di,di+2000,di+4000
+*enddo
+
+! 斜材 (brace)
+type,2
+mat,1
+real,1
+*do,i,1,num_leg_nodes-1,2
+    en,7000+i,i+2000,i+1+1000
+    en,7500+i,i+3000,i+1+2000
+    en,8000+i,i+4000,i+1+3000
+    en,8500+i,i+1000,i+1+4000
+*enddo
+*do,i,2,num_leg_nodes,2
+    en,9000+i,i+1000,i+1+2000
+    en,9500+i,i+2000,i+1+3000
+    en,10000+i,i+3000,i+1+4000
+    en,10500+i,i+4000,i+1+1000
+*enddo
+
+ALLSEL
+NUMMRG,NODE,0.001
+NUMCMP,NODE
+NUMCMP,ELEM
+
+! 边界条件 (悬臂)
+nsel,s,loc,x,0,0
+d,all,all
+allsel
+
+FINISH
+
+! 模态分析
+/SOLU
+ANTYPE,MODAL
+MODOPT,LANB,10
+MXPAND,10
+LUMPM,OFF
+SOLVE
+FINISH
+
+! 提取结果到文件
+/POST1
+*cfopen,results/__CASE_NAME_VAL__,txt
+*do,i,1,10
+    set,1,i
+    *get,freq_i,active,0,set,freq
+    *vwrite,i,freq_i
+(F4.0,',',F12.6)
+*enddo
+*cfclose
+
+FINISH

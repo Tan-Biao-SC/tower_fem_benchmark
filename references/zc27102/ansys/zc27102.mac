@@ -1,0 +1,190 @@
+finish
+/clear
+!采用国际单位制：N、kg、m、s
+
+!输入单元数、节点数、截面数
+num_elements=569
+num_nodes=191
+num_sections=30
+
+!单元类型
+link_beam=2  !0采用link180单元，1采用beam188单元, 2采用link180和beam188混合建模
+!分析类型
+modal_static=2  !0进行模态分析，1进行自重静力分析,2突加荷载分析
+
+!读入单元表、节点表、截面表
+*dim,array_elements,array,num_elements,6
+*dim,array_nodes,array,num_nodes,4
+*dim,array_sections,array,num_sections,5
+*vread,array_elements(1,1),'elements',csv,,jik,6,num_elements,1,1
+(6F10.0)
+*vread,array_nodes(1,1),'nodes',csv,,jik,4,num_nodes,1,1
+(4F10.0)
+*vread,array_sections(1,1),'sections',csv,,jik,5,num_sections,1,1
+(5F10.0)
+
+/prep7
+!将黑色背景改为白色：
+/RGB,INDEX,100,100,100, 0   
+/RGB,INDEX, 80, 80, 80,13   
+/RGB,INDEX, 60, 60, 60,14   
+/RGB,INDEX, 0, 0, 0,15  
+/REPLOT
+
+!建立节点
+*do,i,1,num_nodes,1
+    n,array_nodes(i,1),array_nodes(i,2),array_nodes(i,4),-array_nodes(i,3)
+*enddo
+
+!单元类型
+*if,link_beam,eq,0,then
+    et,1,link180
+*elseif,link_beam,eq,1
+    et,1,beam188
+*elseif,link_beam,eq,2
+    et,1,link180
+    et,2,beam188
+*endif
+
+!材料类型
+uimp,1,ex,prxy,dens,2.06E11,0.31,7850
+mp,alpx,1,0.000012
+
+!建立单元
+*if,link_beam,eq,0,then  !link180单元
+    !计算角钢截面面积
+    *dim,array_sections_area,array,num_sections,1
+    *do,i,1,num_sections,1
+        array_sections_area(i)=array_sections(i,2)*array_sections(i,4)+array_sections(i,3)*array_sections(i,5)-array_sections(i,4)*array_sections(i,5)
+        r,i,array_sections_area(i)
+    *enddo
+    !建立link180单元
+    type,1
+    mat,1
+    *do,i,1,num_elements,1
+        real,array_elements(i,4)
+        en,array_elements(i,1),array_elements(i,5),array_elements(i,6)
+    *enddo
+*elseif,link_beam,eq,1  !beam188单元
+    !定义截面
+    *do,i,1,num_sections,1
+        sectype,i,beam,L
+        secdata,array_sections(i,2),array_sections(i,3),array_sections(i,4),array_sections(i,5)
+    *enddo
+    !建立beam188单元
+    type,1
+    mat,1
+    ! n,10000,0,0,0
+    *do,i,1,num_elements,1
+        secnum,array_elements(i,4)
+        en,array_elements(i,1),array_elements(i,5),array_elements(i,6)  !,10000
+    *enddo
+*elseif,link_beam,eq,2 !link180和beam188混合
+    !link180
+    !计算角钢截面面积
+    *dim,array_sections_area,array,num_sections,1
+    *do,i,1,num_sections,1
+        array_sections_area(i)=array_sections(i,2)*array_sections(i,4)+array_sections(i,3)*array_sections(i,5)-array_sections(i,4)*array_sections(i,5)
+        r,i,array_sections_area(i)
+    *enddo
+
+    !定义截面
+    *do,i,1,num_sections,1
+        sectype,i,beam,L
+        secdata,array_sections(i,2),array_sections(i,3),array_sections(i,4),array_sections(i,5)
+    *enddo
+
+    *do,i,1,num_elements,1
+        type,array_elements(i,3)
+        mat,1
+        *if,array_elements(i,3),eq,1,then !建立link180单元
+            real,array_elements(i,4)
+            en,array_elements(i,1),array_elements(i,5),array_elements(i,6)
+        *elseif,array_elements(i,3),eq,2 !建立beam188单元
+            secnum,array_elements(i,4)
+            en,array_elements(i,1),array_elements(i,5),array_elements(i,6)  !,10000
+        *endif
+    *enddo
+*endif
+
+!边界条件
+nsel,s,loc,y,0,0  !选择竖向y坐标为0的节点(即塔底节点)
+d,all,all
+
+allsel,all,all
+eplot
+/eshape,1
+/view,,1,1,1
+/auto,1
+/replot
+
+!分析及后处理
+*if,modal_static,eq,0,then  !模态分析
+    finish
+    /solu
+    antype,modal
+    modopt,lanb,20
+    ! mxpand,20,,,yes  !不查看消隐振型图时可不扩展
+    solve
+    finish
+    /post1
+    set,1,1
+    /eshape,0
+    plnsol,u,sum
+    set,list  !查看频率列表
+*elseif,modal_static,eq,1  !自重静力分析
+    finish
+    /solu
+    acel,0,9.8,0
+    antype,static
+    solve
+    finish
+    /post1
+    /eshape,0
+    plnsol,u,sum
+*elseif,modal_static,eq,2  !突加荷载分析
+    finish
+    /solu
+    antype,trans
+    nlgeom,on
+    trnopt,full
+    outres,all,all
+    !load step 1
+    timint,off
+    f,all,fz,0
+    time,0.1
+    lswrite,1
+
+    !load step 2
+    timint,on
+    autots,on
+    deltim,1.0e-3
+    f,all,fz,-1e4
+    time,1
+    kbc,1
+    alphad,0.5
+    betad,0.0
+    lswrite,2
+
+    !load step 3
+    timint,on
+    autots,on
+    deltim,1e-2
+    ! f,all,fz,-1e4
+    time,60
+    alphad,0.5
+    betad,0.0
+    ! kbc,1
+    lswrite,3
+
+    !solve
+    lssolve,1,3
+    finish
+    /post26
+    nsol,2,47,u,z
+    plvar,2
+    prvar,2
+    extrem,2
+*endif
+
+

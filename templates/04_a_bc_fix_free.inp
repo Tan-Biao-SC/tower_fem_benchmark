@@ -1,0 +1,15 @@
+! =============================================================================
+! FIX-FREE Boundary Conditions: Cantilever beam
+! - Following the "xbrace.inp" file! 
+! - The Nodes on the x=0 plane will be fixed.
+! =============================================================================
+ALLSEL,ALL,ALL
+/SOLU
+
+! Select all nodes on the x=0 plane
+NSEL,S,LOC,X,0,0
+! Constraint all the DOFs
+D,ALL,ALL
+ALLSEl,ALL,ALL
+
+FINISH

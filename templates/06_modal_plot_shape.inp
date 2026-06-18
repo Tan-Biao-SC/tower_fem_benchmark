@@ -1,0 +1,154 @@
+! =============================================================================
+! Modal Shape Plotting (standalone post-processing)
+! - Loads database and result files from a previous modal analysis
+! - Plots deformed shapes for the first NUM_PLOT_MODES modes (4-view PNG)
+! - Extracts neutral-axis displacements for each mode
+! - Uses RBE3 master nodes (5000-series) defined in 01_model_basic.inp
+! - Must be run in the same directory as the modal analysis results
+! - Output: <case_name>_shape_<N>.txt and <case_name>_mode_<N>.png
+!   PNG files are named <case_name>NNN.png by ANSYS (auto-incrementing);
+!   Python runner renames them to <case_name>_mode_<N>.png
+! =============================================================================
+FINISH
+! Change the background color from black to white
+/RGB,INDEX,100,100,100,0   
+/RGB,INDEX,80,80,80,13   
+/RGB,INDEX,60,60,60,14   
+/RGB,INDEX,0,0,0,15  
+/REPLOT
+
+! Resume the model database (geometry, mesh, parameters)
+RESUME,__CASE_NAME_VAL__,db
+
+! Set jobname so PNG files are named <case_name>NNN.png instead of fileNNN.png
+/FILNAME,__CASE_NAME_VAL__,1
+
+! Number of modes to plot (set by Python)
+NUM_PLOT_MODES=__NUM_PLOT_MODES_VAL__
+
+/POST1
+
+! Set the result file for post-processing
+FILE,__CASE_NAME_VAL__,rst
+
+! Get actual number of modes extracted
+*get, n_modes, ACTIVE, 0, SET, NSET
+*if, NUM_PLOT_MODES, GT, n_modes, THEN
+    NUM_PLOT_MODES = n_modes
+*endif
+
+! Delete any existing PNG files from previous runs
+/SYS,rm -f __CASE_NAME_VAL__???.png
+
+! Open PNG output device (stays open for entire loop; auto-increments NNN)
+/SHOW, PNG
+
+! ============================================================
+! Loop over modes: plot 4-view deformed shape + extract data
+! ============================================================
+*do, imode, 1, NUM_PLOT_MODES, 1
+    SET, 1, imode
+    *get, cur_freq, MODE, imode, FREQ
+
+    ! --- Part 1: 4-view deformed shape plot ---
+    ! Define 4 sub-windows: top-left, top-right, bottom-left, bottom-right
+    /WINDOW, 1, LTOP
+    /WINDOW, 2, RTOP
+    /WINDOW, 3, LBOT
+    /WINDOW, 4, RBOT
+
+    /WINDOW, 1, ON
+    /WINDOW, 2, ON
+    /WINDOW, 3, ON
+    /WINDOW, 4, ON
+
+    ! View 1: Isometric
+    /VIEW, 1, 1, 1, 1
+    /ANGLE, 1
+
+    ! View 2: XY plane (front, view along +Z)
+    /VIEW, 2, 0, 0, 1
+    /ANGLE, 2
+
+    ! View 3: XZ plane (side, view along -Y)
+    /VIEW, 3, 0, -1, 0
+    /ANGLE, 3
+
+    ! View 4: YZ plane (top, view along -X)
+    /VIEW, 4, -1, 0, 0
+    /ANGLE, 4
+
+    ! Auto-scale deformation
+    /DSCALE, 1, AUTO
+
+    ! Plot deformed shape (PNG output is active; each PLDISP creates one file)
+    PLDISP, 2
+
+    ! Restore single window
+    /WINDOW, 1, FULL
+    /WINDOW, 2, OFF
+    /WINDOW, 3, OFF
+    /WINDOW, 4, OFF
+
+    ! --- Part 2: Extract neutral-axis displacements from RBE3 master nodes ---
+    *dim, neut_x,  array, NUM_NODE_PLANES
+    *dim, neut_ux, array, NUM_NODE_PLANES
+    *dim, neut_uy, array, NUM_NODE_PLANES
+    *dim, neut_uz, array, NUM_NODE_PLANES
+    *dim, neut_rx, array, NUM_NODE_PLANES
+    *dim, neut_ry, array, NUM_NODE_PLANES
+    *dim, neut_rz, array, NUM_NODE_PLANES
+
+    *do, i, 1, NUM_NODE_PLANES, 1
+        mast_id = 5000 + i
+        *get, neut_x(i),  NODE, mast_id, LOC, X
+        *get, neut_ux(i), NODE, mast_id, U,   X
+        *get, neut_uy(i), NODE, mast_id, U,   Y
+        *get, neut_uz(i), NODE, mast_id, U,   Z
+        *get, neut_rx(i), NODE, mast_id, ROT, X
+        *get, neut_ry(i), NODE, mast_id, ROT, Y
+        *get, neut_rz(i), NODE, mast_id, ROT, Z
+    *enddo
+
+    ! Create index array
+    *dim, idx_arr, array, NUM_NODE_PLANES
+    *do, i, 1, NUM_NODE_PLANES, 1
+        idx_arr(i) = i
+    *enddo
+
+    ! Write to file
+    /delete, __CASE_NAME_VAL___shape_%imode%, txt
+    *cfopen, __CASE_NAME_VAL___shape_%imode%, txt
+    *vwrite, cur_freq
+    ('Mode frequency = ', E12.5, ' Hz')
+    *vwrite
+    (' ')
+    *vwrite
+    ('Station,X(m),UX,UY,UZ,ROTX,ROTY,ROTZ')
+    *do, j, 1, NUM_NODE_PLANES, 1
+        VUX=neut_ux(j)
+        VUY=neut_uy(j)
+        VUZ=neut_uz(j)
+        VRX=neut_rx(j)
+        VRY=neut_ry(j)
+        VRZ=neut_rz(j)
+        *vwrite, idx_arr(j), neut_x(j), VUX, VUY, VUZ, VRX, VRY, VRZ
+        (F6.0,',',F8.4,6(',',E12.5))
+    *enddo
+    *cfclose
+
+    ! Clean up arrays for next iteration
+    *dim, neut_x, , , ,
+    *dim, neut_ux, , , ,
+    *dim, neut_uy, , , ,
+    *dim, neut_uz, , , ,
+    *dim, neut_rx, , , ,
+    *dim, neut_ry, , , ,
+    *dim, neut_rz, , , ,
+    *dim, idx_arr, , , ,
+*enddo
+
+! Close PNG output device
+/SHOW, CLOSE
+
+FINISH

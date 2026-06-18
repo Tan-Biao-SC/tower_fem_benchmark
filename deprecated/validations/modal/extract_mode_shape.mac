@@ -1,0 +1,130 @@
+FINISH
+
+! ============================================================
+! 模态振型提取与可视化
+! 使用说明：修改 target_mode 选择目标模态阶数
+! 前置条件：已依次运行 model.mac → modal_analysis.mac
+! ============================================================
+
+target_mode = 14         ! <--- 修改此处选择要查看的模态阶数
+
+! 从模型中自动获取结构参数
+/POST1
+
+! Lb（截面宽度）: 从节点 2001 的 Y 坐标推导
+*get, y_2001, NODE, 2001, LOC, Y
+Lb = 2.0 * abs(y_2001)
+
+! Ll（节间长度）: 从相邻两节点 X 坐标差推导
+*get, x_1001, NODE, 1001, LOC, X
+*get, x_1002, NODE, 1002, LOC, X
+Ll = x_1002 - x_1001
+
+! num_leg_nodes: 总节点数 = 4条腿 + 1条中性轴主节点线 = 5组
+*get, ncount, NODE, 0, COUNT
+num_leg_nodes = ncount / 5
+
+! 获取实际提取的模态总数（等于结果文件中的数据集数）
+*get, n_modes, ACTIVE, 0, SET, NSET
+*if, target_mode, GT, n_modes, THEN
+    target_mode = n_modes
+*endif
+
+SET, 1, target_mode
+*get, cur_freq, MODE, target_mode, FREQ
+
+! ============================================================
+! Part 1: 四视角模态振型图
+! ============================================================
+! 定义 4 个子窗口：左上、右上、左下、右下
+/WINDOW, 1, LTOP
+/WINDOW, 2, RTOP
+/WINDOW, 3, LBOT
+/WINDOW, 4, RBOT
+
+/WINDOW, 1, ON
+/WINDOW, 2, ON
+/WINDOW, 3, ON
+/WINDOW, 4, ON
+
+! 视角 1: 等轴测
+/VIEW, 1, 1, 1, 1
+/ANGLE, 1
+
+! 视角 2: XY 平面（正面，视线沿 +Z）
+/VIEW, 2, 0, 0, 1
+/ANGLE, 2
+
+! 视角 3: XZ 平面（侧面，视线沿 -Y）
+/VIEW, 3, 0, -1, 0
+/ANGLE, 3
+
+! 视角 4: YZ 平面（顶部俯视，视线沿 -X）
+/VIEW, 4, -1, 0, 0
+/ANGLE, 4
+
+! 自动缩放变形比例
+/DSCALE, 1, AUTO
+
+! 绘制振型（在全部 4 个窗口中）
+PLDISP, 2
+
+! 输出 PNG 图片
+/SHOW, PNG
+PLDISP, 2
+/SHOW, CLOSE
+
+! 恢复单窗口显示
+/WINDOW, 1, FULL
+/WINDOW, 2, OFF
+/WINDOW, 3, OFF
+/WINDOW, 4, OFF
+
+! ============================================================
+! Part 2: 中性轴模态位移提取
+! ============================================================
+! 直接读取 CERIG 主节点 (8001 ~ 8000+num_leg_nodes) 的 6 自由度
+! 主节点通过刚性约束方程耦合 4 角点 → 天然就是截面刚体运动
+! 不再手工平均/反算，ANSYS 约束方程求解器保证了精度
+
+! 创建存储数组
+*dim, neut_x,  array, num_leg_nodes
+*dim, neut_ux, array, num_leg_nodes
+*dim, neut_uy, array, num_leg_nodes
+*dim, neut_uz, array, num_leg_nodes
+*dim, neut_rx, array, num_leg_nodes
+*dim, neut_ry, array, num_leg_nodes
+*dim, neut_rz, array, num_leg_nodes
+
+*do, i, 1, num_leg_nodes, 1
+    mast_id = 20000 + i
+
+    *get, neut_x(i),  NODE, mast_id, LOC, X
+    *get, neut_ux(i), NODE, mast_id, U,   X
+    *get, neut_uy(i), NODE, mast_id, U,   Y
+    *get, neut_uz(i), NODE, mast_id, U,   Z
+    *get, neut_rx(i), NODE, mast_id, ROT, X
+    *get, neut_ry(i), NODE, mast_id, ROT, Y
+    *get, neut_rz(i), NODE, mast_id, ROT, Z
+*enddo
+
+! 创建序号数组
+*dim, idx_arr, array, num_leg_nodes
+*do, i, 1, num_leg_nodes, 1
+    idx_arr(i)=i
+*enddo
+
+! 输出到 CSV 文件（文件名含模态号，避免多次运行覆盖）
+/delete, neutral_axis_mode_%target_mode%, txt
+*cfopen, neutral_axis_mode_%target_mode%, txt
+*vwrite, cur_freq
+('Mode frequency = ', E12.5, ' Hz')
+*vwrite
+(' ')
+*vwrite
+('Station,X(m),UX,UY,UZ,ROTX,ROTY,ROTZ')
+*vwrite, idx_arr(1), neut_x(1), neut_ux(1), neut_uy(1), neut_uz(1), neut_rx(1), neut_ry(1), neut_rz(1)
+(F6.0,',',F8.4,6(',',E12.5))
+*cfclose
+
+FINISH

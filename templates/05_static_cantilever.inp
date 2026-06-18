@@ -1,0 +1,73 @@
+! =============================================================================
+! Static Analysis: Cantilever (Fix-Free) Beam
+! - Applies 6 load cases at the free-end RBE3 master node
+! - Extracts 6-DOF tip displacements
+! - Prerequisite: 04_a_bc_fix_free.inp must be concatenated before this file
+! - Output: __CASE_NAME_VAL___cantilever.txt (in ANSYS working directory)
+! =============================================================================
+FINISH
+
+! Tip node: last cross-section center (RBE3 master node)
+TIP_NODE=5000+NUM_NODE_PLANES
+
+! Arrays to store displacements for 6 load cases
+*DIM,TIP_UX,ARRAY,6
+*DIM,TIP_UY,ARRAY,6
+*DIM,TIP_UZ,ARRAY,6
+*DIM,TIP_RX,ARRAY,6
+*DIM,TIP_RY,ARRAY,6
+*DIM,TIP_RZ,ARRAY,6
+
+! Load case loop: FX, FY, FZ, MX, MY, MZ
+*DO,I,1,6,1
+    /SOLU
+    ANTYPE,STATIC
+    ALLSEL,ALL
+    FDELE,ALL,ALL
+
+    *IF,I,EQ,1,THEN
+        F,TIP_NODE,FX,1E3   ! 1 kN
+    *ELSEIF,I,EQ,2,THEN
+        F,TIP_NODE,FY,1E3
+    *ELSEIF,I,EQ,3,THEN
+        F,TIP_NODE,FZ,1E3
+    *ELSEIF,I,EQ,4,THEN
+        F,TIP_NODE,MX,1E3   ! 1 KN*m
+    *ELSEIF,I,EQ,5,THEN
+        F,TIP_NODE,MY,1E3
+    *ELSEIF,I,EQ,6,THEN
+        F,TIP_NODE,MZ,1E3
+    *ENDIF
+
+    SOLVE
+    FINISH
+
+    /POST1
+    SET, LAST
+    *GET,TIP_UX(I),NODE,TIP_NODE,U,X
+    *GET,TIP_UY(I),NODE,TIP_NODE,U,Y
+    *GET,TIP_UZ(I),NODE,TIP_NODE,U,Z
+    *GET,TIP_RX(I),NODE,TIP_NODE,ROT,X
+    *GET,TIP_RY(I),NODE,TIP_NODE,ROT,Y
+    *GET,TIP_RZ(I),NODE,TIP_NODE,ROT,Z
+    FINISH
+*enddo
+
+! Write results to file
+*DIM,COLS,CHAR,6,2
+COLS(1)='FX'
+COLS(2)='FY'
+COLS(3)='FZ'
+COLS(4)='RX'
+COLS(5)='RY'
+COLS(6)='RZ'
+
+/DELETE,__CASE_NAME_VAL___cantilever,txt
+*CFOPEN,__CASE_NAME_VAL___cantilever,txt
+*VWRITE
+('load_case,ux,uy,uz,rx,ry,rz')
+*VWRITE, COLS(1),TIP_UX(1),TIP_UY(1),TIP_UZ(1),TIP_RX(1),TIP_RY(1),TIP_RZ(1)
+(A2,',',E12.5,',',E12.5,',',E12.5,',',E12.5,',',E12.5,',',E12.5)
+*CFCLOS
+
+FINISH
