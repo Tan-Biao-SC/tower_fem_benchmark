@@ -1,0 +1,242 @@
+! ============================================================
+! n=2 supercell: 6 generalized-strain tests
+! alpha = [EX, KY, KZ, GXY, GXZ, KX]
+!
+! Each load case applies one generalized strain component with
+! amplitude AMP, extracts the total elastic strain energy, and
+! computes the corresponding diagonal sectional stiffness:
+!
+!     U_i = 0.5 * LCELL * D_ii * AMP^2
+!     D_ii = 2 * U_i / (LCELL * AMP^2)
+!
+! Output file:
+!     n2_Dmatrix_result.csv
+! ============================================================
+
+! RESUME,__JobName_STR__,DB
+RESUME,test,DB
+
+! --------------------------------------------------------
+! 2.3 Remove rigid-body motion:
+!     node 5001 is the RBE3 reference node of the left section
+! --------------------------------------------------------
+! D,5001,ALL,0
+! D,5001,UX,0
+! D,5001,UY,0
+! D,5001,UZ,0
+
+! *DO,ICORNER,1,4,1
+!     NL = ICORNER*1000 + 1
+!     D,NL,ROTX,0
+!     D,NL,ROTY,0
+!     D,NL,ROTZ,0
+! *ENDDO
+! /SOLU
+! ALLSEL,ALL,ALL
+! NSEL,S,LOC,X,-LCELL/2.0
+! D,ALL,ALL
+! ALLSEL,ALL,ALL
+! FINISH
+
+! ------------------------------------------------------------
+! 1. Generalized strain amplitude and result arrays
+! ------------------------------------------------------------
+AMP   = 1.0E-5
+LCELL = NUM_SUB_SECTIONS*LS
+
+*DIM,UCASE,ARRAY,6
+*DIM,DCASE,ARRAY,6
+
+
+! ------------------------------------------------------------
+! 2. Run six independent generalized-strain tests
+! ------------------------------------------------------------
+*DO,ICASE,1,6,1
+
+    ! --------------------------------------------------------
+    ! 2.1 Reset generalized strains
+    !     1: EX, 2: KY, 3: KZ, 4: GXY, 5: GXZ, 6: KX
+    ! --------------------------------------------------------
+    EX   = 0
+    KY   = 0
+    KZ   = 0
+    GXY  = 0
+    GXZ  = 0
+    KX   = 0
+
+    *IF,ICASE,EQ,1,THEN
+        EX  = AMP
+    *ENDIF
+    *IF,ICASE,EQ,2,THEN
+        KY  = AMP
+    *ENDIF
+    *IF,ICASE,EQ,3,THEN
+        KZ  = AMP
+    *ENDIF
+    *IF,ICASE,EQ,4,THEN
+        GXY = AMP
+    *ENDIF
+    *IF,ICASE,EQ,5,THEN
+        GXZ = AMP
+    *ENDIF
+    *IF,ICASE,EQ,6,THEN
+        KX  = AMP
+    *ENDIF
+
+    ! --------------------------------------------------------
+    ! 2.2 Static solution setup
+    ! --------------------------------------------------------
+    FINISH
+    /SOLU
+    ANTYPE,STATIC,NEW
+    NLGEOM,OFF
+    EQSLV,SPARSE
+    OUTRES,ALL,ALL
+    ALLSEL,ALL
+
+    ! Remove displacement constraints and periodic constraint equations
+    ! from previous case. Do NOT use CEDELE,ALL here because RBE3 also
+    ! creates constraint equations during model generation.
+    DDELE,ALL,ALL
+    *IF,ICASE,GT,1,THEN
+        CEDELE,100000,100999,1
+    *ENDIF
+
+    ! --------------------------------------------------------
+    ! 2.3 Remove rigid-body motion:
+    !     node 5001 is the RBE3 reference node of the left section
+    ! --------------------------------------------------------
+    D,5002,ALL,0
+    ! D,5001,UX,0
+    ! D,5001,UY,0
+    ! D,5001,UZ,0
+
+    ! *DO,ICORNER,1,4,1
+    !     NL = ICORNER*1000 + 1
+    !     D,NL,ROTX,0
+    !     D,NL,ROTY,0
+    !     D,NL,ROTZ,0
+    ! *ENDDO
+    ! ALLSEL,ALL,ALL
+    ! NSEL,S,LOC,X,-LCELL/2.0
+    ! ! D,ALL,ALL,0
+    ! D,ALL,UX,0
+    ! D,ALL,UY,0
+    ! D,ALL,UZ,0
+    ! ALLSEL,ALL,ALL
+
+    ! --------------------------------------------------------
+    ! 2.4 Periodic displacement differences between the
+    !     corresponding corner nodes of the two end sections
+    !
+    !     Left node plane : I = 1
+    !     Right node plane: I = NUM_NODE_PLANES
+    ! --------------------------------------------------------
+    ILEFT  = 1
+    IRIGHT = NUM_NODE_PLANES
+
+    *DO,ICORNER,1,4,1
+
+        NL = ICORNER*1000 + ILEFT
+        NR = ICORNER*1000 + IRIGHT
+
+        *GET,YY,NODE,NL,LOC,Y
+        *GET,ZZ,NODE,NL,LOC,Z
+        *GET,XL,NODE,NL,LOC,X
+        *GET,XR,NODE,NR,LOC,X
+
+        DX  = XR - XL
+        X2D = 0.5*(XR**2 - XL**2)
+
+        DUX = DX*(EX + ZZ*KY - YY*KZ)
+        DUY = DX*GXY + X2D*KZ - ZZ*DX*KX
+        DUZ = DX*GXZ - X2D*KY + YY*DX*KX
+
+        DRX = DX*KX
+        DRY = DX*KY
+        DRZ = DX*KZ
+
+        ! DUX = LCELL*(EX + ZZ*KY - YY*KZ)
+        ! DUY = LCELL*GXY + 0.5*LCELL**2*KZ - ZZ*LCELL*KX
+        ! DUZ = LCELL*GXZ - 0.5*LCELL**2*KY + YY*LCELL*KX
+        ! DRX = LCELL*KX
+        ! DRY = LCELL*KY
+        ! DRZ = LCELL*KZ
+
+        CEBASE = 100000 + (ICORNER-1)*10
+
+        ! CE, NEQN, CONST, NODE1, Lab1, C1, NODE2, Lab2, C2, NODE3, Lab3, C3
+        ! $ Constant=\sum_{i=1}^{N}C_i U_i $
+        CE,CEBASE+1,DUX,NR,UX,  1,NL,UX,  -1
+        CE,CEBASE+2,DUY,NR,UY,  1,NL,UY,  -1
+        CE,CEBASE+3,DUZ,NR,UZ,  1,NL,UZ,  -1
+
+        CE,CEBASE+4,DRX,NR,ROTX,1,NL,ROTX,-1
+        CE,CEBASE+5,DRY,NR,ROTY,1,NL,ROTY,-1
+        CE,CEBASE+6,DRZ,NR,ROTZ,1,NL,ROTZ,-1
+
+    *ENDDO
+
+    ALLSEL,ALL
+    SOLVE
+    FINISH
+
+    ! --------------------------------------------------------
+    ! 2.5 Extract total elastic strain energy
+    ! --------------------------------------------------------
+    /POST1
+    SET,LAST
+    ALLSEL,ALL
+
+    ! Select only BEAM188 and LINK180 elements
+    ESEL,S,TYPE,,1
+    ESEL,A,TYPE,,2
+
+    ETABLE,ERAS
+    ETABLE,UELEM,SENE
+    SSUM
+
+    *GET,UTMP,SSUM,0,ITEM,UELEM
+    UCASE(ICASE) = UTMP
+    DCASE(ICASE) = 2*UTMP/(LCELL*AMP**2)
+
+    ALLSEL,ALL
+
+*ENDDO
+
+! ------------------------------------------------------------
+! 3. Write summary file
+! ------------------------------------------------------------
+*CFOPEN,n2_Dmatrix_result,csv
+*VWRITE
+('case,dof,dcoef,total_strain_energy,diagonal_stiffness')
+
+UTMP = UCASE(1)
+DTMP = DCASE(1)
+*VWRITE,UTMP,DTMP
+('1,EX,D11,',E20.10,',',E20.10)
+UTMP = UCASE(2)
+DTMP = DCASE(2)
+*VWRITE,UTMP,DTMP
+('2,KY,D22,',E20.10,',',E20.10)
+UTMP = UCASE(3)
+DTMP = DCASE(3)
+*VWRITE,UTMP,DTMP
+('3,KZ,D33,',E20.10,',',E20.10)
+UTMP = UCASE(4)
+DTMP = DCASE(4)
+*VWRITE,UTMP,DTMP
+('4,GXY,D44,',E20.10,',',E20.10)
+UTMP = UCASE(5)
+DTMP = DCASE(5)
+*VWRITE,UTMP,DTMP
+('5,GXZ,D55,',E20.10,',',E20.10)
+UTMP = UCASE(6)
+DTMP = DCASE(6)
+*VWRITE,UTMP,DTMP
+('6,KX,D66,',E20.10,',',E20.10)
+
+*CFCLOSE
+
+ALLSEL,ALL
+FINISH

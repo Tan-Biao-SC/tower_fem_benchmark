@@ -1,0 +1,2 @@
+Total strain energy =     0.2462253457E-01
+D11_FE =     0.2434259473E+09

@@ -1,0 +1,193 @@
+! ============================================================
+! Relaxed truss stiffness tests for the periodic truss unit cell
+!
+! This file starts from basicmodel.mac database, adds an RBE3 only
+! at the left end section to define an average reference motion,
+! fixes the left center reference node, and applies generalized
+! strain displacement constraints to the four right end corner nodes
+! by CE equations.
+!
+! This follows the requested "real truss" workflow and does not use
+! CERIG rigid end planes.
+!
+! Generalized strain order:
+!   alpha = [EX, KY, KZ, GXY, GXZ, KX]
+!
+! Output file:
+!   pbc_Dmatrix_result.csv
+! ============================================================
+
+FINISH
+RESUME,basicmodel,DB
+
+! ------------------------------------------------------------
+! 1. Add left-end RBE3 reference only
+! ------------------------------------------------------------
+/PREP7
+ALLSEL,ALL,ALL
+
+NLC=5001
+ILEFT=1
+IRIGHT=NUM_NODE_PLANES
+LCELL=NUM_SUB_SECTIONS*LS
+
+! Left-end RBE3: reference node 5001, left four corner nodes as slaves.
+NSEL,S,LOC,X,-LCELL/2.0-1E-6,-LCELL/2.0+1E-6
+NSEL,U,NODE,,NLC
+RBE3,NLC,ALL,ALL
+ALLSEL,ALL,ALL
+FINISH
+
+! ------------------------------------------------------------
+! 2. Generalized strain amplitude and result arrays
+! ------------------------------------------------------------
+AMP=1.0E-5
+
+*DIM,UCASE,ARRAY,6
+*DIM,DCASE,ARRAY,6
+
+! ------------------------------------------------------------
+! 3. Run six independent generalized-strain tests
+! ------------------------------------------------------------
+*DO,ICASE,1,6,1
+
+    EX=0
+    KY=0
+    KZ=0
+    GXY=0
+    GXZ=0
+    KX=0
+
+    *IF,ICASE,EQ,1,THEN
+        EX=AMP
+    *ENDIF
+    *IF,ICASE,EQ,2,THEN
+        KY=AMP
+    *ENDIF
+    *IF,ICASE,EQ,3,THEN
+        KZ=AMP
+    *ENDIF
+    *IF,ICASE,EQ,4,THEN
+        GXY=AMP
+    *ENDIF
+    *IF,ICASE,EQ,5,THEN
+        GXZ=AMP
+    *ENDIF
+    *IF,ICASE,EQ,6,THEN
+        KX=AMP
+    *ENDIF
+
+    FINISH
+    /SOLU
+    ANTYPE,STATIC,NEW
+    NLGEOM,OFF
+    EQSLV,SPARSE
+    OUTRES,ALL,ALL
+    ALLSEL,ALL
+
+    ! Remove previous displacement constraints and only the loading CE block.
+    ! Do not delete all CE, because RBE3 is also represented by CE.
+    DDELE,ALL,ALL
+    *IF,ICASE,GT,1,THEN
+        CEDELE,100000,100999,1
+    *ENDIF
+
+    ! Remove rigid-body motion by fixing the left RBE3 reference node.
+    D,NLC,ALL,0
+
+    ! Apply generalized displacement field to the four right end corner nodes.
+    ! The displacement target is calculated from the corresponding left node
+    ! coordinates, using the general formula with actual XL and XR.
+    *DO,ICORNER,1,4,1
+
+        NL=ICORNER*1000+ILEFT
+        NR=ICORNER*1000+IRIGHT
+
+        *GET,YY,NODE,NL,LOC,Y
+        *GET,ZZ,NODE,NL,LOC,Z
+
+        DUX = LCELL*(EX + ZZ*KY - YY*KZ)
+        DUY = LCELL*GXY + 0.5*LCELL**2*KZ - ZZ*LCELL*KX
+        DUZ = LCELL*GXZ - 0.5*LCELL**2*KY + YY*LCELL*KX
+        DRX = LCELL*KX
+        DRY = LCELL*KY
+        DRZ = LCELL*KZ
+
+        CEBASE=100000+(ICORNER-1)*10
+
+        ! One-term CE equations are used here as prescribed constraints.
+        ! CE,CEBASE+1,DUX,NR,UX,  1
+        ! CE,CEBASE+2,DUY,NR,UY,  1
+        ! CE,CEBASE+3,DUZ,NR,UZ,  1
+        ! CE,CEBASE+4,DRX,NR,ROTX,1
+        ! CE,CEBASE+5,DRY,NR,ROTY,1
+        ! CE,CEBASE+6,DRZ,NR,ROTZ,1
+        CE,CEBASE+1,DUX,NR,UX,  1,NL,UX,  -1
+        CE,CEBASE+2,DUY,NR,UY,  1,NL,UY,  -1
+        CE,CEBASE+3,DUZ,NR,UZ,  1,NL,UZ,  -1
+
+        CE,CEBASE+4,DRX,NR,ROTX,1,NL,ROTX,-1
+        CE,CEBASE+5,DRY,NR,ROTY,1,NL,ROTY,-1
+        CE,CEBASE+6,DRZ,NR,ROTZ,1,NL,ROTZ,-1
+
+    *ENDDO
+
+    ALLSEL,ALL
+    SOLVE
+    FINISH
+
+    /POST1
+    SET,LAST
+    ALLSEL,ALL
+
+    ! Select physical members only: BEAM188 and LINK180.
+    ESEL,S,TYPE,,1
+    ESEL,A,TYPE,,2
+
+    ETABLE,ERAS
+    ETABLE,UELEM,SENE
+    SSUM
+
+    *GET,UTMP,SSUM,0,ITEM,UELEM
+    UCASE(ICASE)=UTMP
+    DCASE(ICASE)=2*UTMP/(LCELL*AMP**2)
+
+    ALLSEL,ALL
+
+*ENDDO
+
+! ------------------------------------------------------------
+! 4. Write summary file
+! ------------------------------------------------------------
+*CFOPEN,pbc_Dmatrix_result,csv
+*VWRITE
+('case,dof,dcoef,total_strain_energy,diagonal_stiffness')
+
+UTMP=UCASE(1)
+DTMP=DCASE(1)
+*VWRITE,UTMP,DTMP
+('1,EX,D11,',E20.10,',',E20.10)
+UTMP=UCASE(2)
+DTMP=DCASE(2)
+*VWRITE,UTMP,DTMP
+('2,KY,D22,',E20.10,',',E20.10)
+UTMP=UCASE(3)
+DTMP=DCASE(3)
+*VWRITE,UTMP,DTMP
+('3,KZ,D33,',E20.10,',',E20.10)
+UTMP=UCASE(4)
+DTMP=DCASE(4)
+*VWRITE,UTMP,DTMP
+('4,GXY,D44,',E20.10,',',E20.10)
+UTMP=UCASE(5)
+DTMP=DCASE(5)
+*VWRITE,UTMP,DTMP
+('5,GXZ,D55,',E20.10,',',E20.10)
+UTMP=UCASE(6)
+DTMP=DCASE(6)
+*VWRITE,UTMP,DTMP
+('6,KX,D66,',E20.10,',',E20.10)
+
+*CFCLOSE
+ALLSEL,ALL
+FINISH

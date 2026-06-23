@@ -1,0 +1,14 @@
+FINISH
+/SOLU
+! Precise mass and inertia summary only
+ANTYPE,STATIC
+OUTPR,ALL,ALL
+
+IRLF,-1
+PSOLVE,ELFORM
+
+/OUTPUT,n2_mass_summary,txt
+IRLIST
+/OUTPUT
+
+FINISH

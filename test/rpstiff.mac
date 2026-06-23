@@ -1,0 +1,167 @@
+! ============================================================
+! Rigid-plane stiffness tests for the periodic truss unit cell
+!
+! This file starts from basicmodel.mac database, adds CERIG rigid
+! planes at the left and right end sections, fixes the left center
+! reference node, applies one small generalized strain component at
+! the right center reference node, and computes D11~D66 from strain
+! energy.
+!
+! Generalized strain order:
+!   alpha = [EX, KY, KZ, GXY, GXZ, KX]
+!
+! Output file:
+!   rp_Dmatrix_result.csv
+! ============================================================
+
+FINISH
+RESUME,basicmodel,DB
+
+! ------------------------------------------------------------
+! 1. Add rigid planes at both end sections
+! ------------------------------------------------------------
+/PREP7
+ALLSEL,ALL,ALL
+
+NLC=5001
+NRC=5000+NUM_NODE_PLANES
+
+! Left rigid plane
+! Use explicit corner-node CERIG commands instead of CERIG,NLC,ALL,ALL.
+! This avoids the ANSYS error where the master node is reported as
+! undefined after it has been unselected from the active node set.
+CERIG,NLC,1001,ALL
+CERIG,NLC,2001,ALL
+CERIG,NLC,3001,ALL
+CERIG,NLC,4001,ALL
+
+! Right rigid plane
+CERIG,NRC,1000+NUM_NODE_PLANES,ALL
+CERIG,NRC,2000+NUM_NODE_PLANES,ALL
+CERIG,NRC,3000+NUM_NODE_PLANES,ALL
+CERIG,NRC,4000+NUM_NODE_PLANES,ALL
+ALLSEL,ALL,ALL
+FINISH
+
+! ------------------------------------------------------------
+! 2. Generalized strain amplitude and result arrays
+! ------------------------------------------------------------
+AMP=1.0E-5
+LCELL=NUM_SUB_SECTIONS*LS
+
+*DIM,UCASE,ARRAY,6
+*DIM,DCASE,ARRAY,6
+
+! ------------------------------------------------------------
+! 3. Run six independent generalized-strain tests
+! ------------------------------------------------------------
+*DO,ICASE,1,6,1
+
+    EX=0
+    KY=0
+    KZ=0
+    GXY=0
+    GXZ=0
+    KX=0
+
+    *IF,ICASE,EQ,1,THEN
+        EX=AMP
+    *ENDIF
+    *IF,ICASE,EQ,2,THEN
+        KY=AMP
+    *ENDIF
+    *IF,ICASE,EQ,3,THEN
+        KZ=AMP
+    *ENDIF
+    *IF,ICASE,EQ,4,THEN
+        GXY=AMP
+    *ENDIF
+    *IF,ICASE,EQ,5,THEN
+        GXZ=AMP
+    *ENDIF
+    *IF,ICASE,EQ,6,THEN
+        KX=AMP
+    *ENDIF
+
+    FINISH
+    /SOLU
+    ANTYPE,STATIC,NEW
+    NLGEOM,OFF
+    EQSLV,SPARSE
+    OUTRES,ALL,ALL
+    ALLSEL,ALL
+
+    ! Remove displacement constraints from previous case.
+    ! Do not delete CE, because CERIG is represented by constraint equations.
+    DDELE,ALL,ALL
+
+    ! Fix left rigid-plane reference node.
+    D,NLC,ALL,0
+
+    ! Apply generalized strain through right rigid-plane reference node.
+    D,NRC,UX,  LCELL*EX
+    D,NRC,UY,  LCELL*GXY+0.5*LCELL*KZ
+    D,NRC,UZ,  LCELL*GXZ-0.5*LCELL*KY 
+    D,NRC,ROTX,LCELL*KX
+    D,NRC,ROTY,LCELL*KY
+    D,NRC,ROTZ,LCELL*KZ
+
+    ALLSEL,ALL
+    SOLVE
+    FINISH
+
+    /POST1
+    SET,LAST
+    ALLSEL,ALL
+
+    ! Select physical members only: BEAM188 and LINK180.
+    ESEL,S,TYPE,,1
+    ESEL,A,TYPE,,2
+
+    ETABLE,ERAS
+    ETABLE,UELEM,SENE
+    SSUM
+
+    *GET,UTMP,SSUM,0,ITEM,UELEM
+    UCASE(ICASE)=UTMP
+    DCASE(ICASE)=2*UTMP/(LCELL*AMP**2)
+
+    ALLSEL,ALL
+
+*ENDDO
+
+! ------------------------------------------------------------
+! 4. Write summary file
+! ------------------------------------------------------------
+*CFOPEN,rp_Dmatrix_result,csv
+*VWRITE
+('case,dof,dcoef,total_strain_energy,diagonal_stiffness')
+
+UTMP=UCASE(1)
+DTMP=DCASE(1)
+*VWRITE,UTMP,DTMP
+('1,EX,D11,',E20.10,',',E20.10)
+UTMP=UCASE(2)
+DTMP=DCASE(2)
+*VWRITE,UTMP,DTMP
+('2,KY,D22,',E20.10,',',E20.10)
+UTMP=UCASE(3)
+DTMP=DCASE(3)
+*VWRITE,UTMP,DTMP
+('3,KZ,D33,',E20.10,',',E20.10)
+UTMP=UCASE(4)
+DTMP=DCASE(4)
+*VWRITE,UTMP,DTMP
+('4,GXY,D44,',E20.10,',',E20.10)
+UTMP=UCASE(5)
+DTMP=DCASE(5)
+*VWRITE,UTMP,DTMP
+('5,GXZ,D55,',E20.10,',',E20.10)
+UTMP=UCASE(6)
+DTMP=DCASE(6)
+*VWRITE,UTMP,DTMP
+('6,KX,D66,',E20.10,',',E20.10)
+
+*CFCLOSE
+ALLSEL,ALL
+FINISH

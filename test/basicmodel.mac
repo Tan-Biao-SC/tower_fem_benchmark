@@ -1,0 +1,174 @@
+! ============================================================
+! Basic model of the periodic truss unit cell
+!
+! This file is based on periodicmodel.mac. It creates the physical
+! members of the truss unit cell and the 5000-series section-center
+! reference nodes. A nearly-zero MASS21 element is attached to each
+! center node only to keep the reference nodes active for subsequent
+! RBE3/CERIG operations. It does not create RBE3, CERIG, CE,
+! displacement constraints, loads, or analysis settings.
+!
+! The database saved here is used by:
+!   - inertia.mac  : mass / inertia calculation
+!   - rpstiff.mac  : rigid-plane stiffness tests by CERIG
+!   - pbcstiff.mac : relaxed truss stiffness tests by RBE3 + CE
+!
+! SI units: kg, m, s, N, Pa
+! ============================================================
+
+FINISH
+/CLEAR
+/FILNAME,basicmodel,1
+
+! 1. Graphic settings, kept from periodicmodel.mac
+/DEVICE,FONT,1,BITSTREAM*CHARTER,MEDIUM,R,32,,,,,
+/DEVICE,FONT,2,BITSTREAM*CHARTER,MEDIUM,R,16,,,,,
+/DEVICE,FONT,3,BITSTREAM*CHARTER,MEDIUM,R,32,,,,,
+/RGB,INDEX,100,100,100,0
+/RGB,INDEX,80,80,80,13
+/RGB,INDEX,60,60,60,14
+/RGB,INDEX,0,0,0,15
+/REPLOT
+
+/PREP7
+
+! ------------------------------------------------------------
+! 2. Element types
+! ------------------------------------------------------------
+ET,1,BEAM188        ! Leg members & diaphragm members
+ET,2,LINK180        ! Brace members
+ET,3,MASS21         ! Available for later RBE3 reference nodes
+
+! ------------------------------------------------------------
+! 3. Materials
+! ------------------------------------------------------------
+! Material for legs and braces
+UIMP,1,EX,PRXY,DENS,2.06E11,0.31,7850
+MP,ALPX,1,0.000012
+
+! Material for diaphragms; half density for shared diaphragm contribution
+UIMP,2,EX,PRXY,DENS,2.06E11,0.31,7850/2.0
+MP,ALPX,2,0.000012
+
+! ------------------------------------------------------------
+! 4. Sections / real constants
+! ------------------------------------------------------------
+SECTYPE,1,BEAM,L                            ! Leg section
+SECDATA,0.16,0.16,0.014,0.014
+
+SECTYPE,2,BEAM,L                            ! Diaphragm section
+SECDATA,0.08,0.08,0.006,0.006
+
+R,3,7.412E-4                                ! Brace section area
+R,4,1E-12,1E-12,1E-12                       ! Nearly-zero MASS21 values
+
+! ------------------------------------------------------------
+! 5. Geometry parameters
+! ------------------------------------------------------------
+NUM_SECTIONS=1
+NUM_SUB_SECTIONS=2
+NUM_NODE_PLANES=NUM_SECTIONS*NUM_SUB_SECTIONS+1
+LS=2.023/2.0
+WS=2.0
+LCELL=LS*NUM_SUB_SECTIONS
+
+! ------------------------------------------------------------
+! 6. Nodes
+!
+! Node numbering convention:
+!   1000-series: bottom-left leg
+!   2000-series: bottom-right leg
+!   3000-series: top-right leg
+!   4000-series: top-left leg
+!   5000-series: section center reference nodes
+!
+! The origin is located at the center of the unit cell.
+! ------------------------------------------------------------
+*DO,I,1,NUM_NODE_PLANES,1
+    X=(I-1)*LS-LCELL/2
+
+    NID=I+1000
+    N,NID,X,-WS/2.0,-WS/2.0
+
+    NID=I+2000
+    N,NID,X, WS/2.0,-WS/2.0
+
+    NID=I+3000
+    N,NID,X, WS/2.0, WS/2.0
+
+    NID=I+4000
+    N,NID,X,-WS/2.0, WS/2.0
+
+    ! Reference node only; no RBE3/CERIG is generated in this basic model.
+    NID=I+5000
+    N,NID,X,0,0
+*ENDDO
+
+! ------------------------------------------------------------
+! 7. Activate section-center reference nodes with nearly-zero MASS21
+!
+! The 5000-series nodes are not connected to physical truss members in
+! the basic model. Attach nearly-zero MASS21 elements so ANSYS keeps
+! them active in the database and later RBE3/CERIG commands can use
+! them as reference/master nodes.
+! ------------------------------------------------------------
+TYPE,3
+REAL,4
+*DO,I,1,NUM_NODE_PLANES,1
+    EN,I+5000,I+5000
+*ENDDO
+
+! ------------------------------------------------------------
+! 8. Leg members: BEAM188
+! ------------------------------------------------------------
+TYPE,1
+MAT,1
+SECNUM,1
+*DO,I,1,NUM_NODE_PLANES-1,1
+    EN,I+1000,I+1000,I+1+1000
+    EN,I+2000,I+2000,I+1+2000
+    EN,I+3000,I+3000,I+1+3000
+    EN,I+4000,I+4000,I+1+4000
+*ENDDO
+
+MAX_ELEM_NUM=6000
+
+! ------------------------------------------------------------
+! 9. Diaphragm members: BEAM188, X-braced square diaphragm
+! ------------------------------------------------------------
+TYPE,1
+MAT,2
+SECNUM,2
+*DO,I,1,NUM_SECTIONS+1,1
+    DI=(I-1)*NUM_SUB_SECTIONS+1
+    EN,MAX_ELEM_NUM+DI+100,1000+DI,2000+DI
+    EN,MAX_ELEM_NUM+DI+200,2000+DI,3000+DI
+    EN,MAX_ELEM_NUM+DI+300,3000+DI,4000+DI
+    EN,MAX_ELEM_NUM+DI+400,4000+DI,1000+DI
+    EN,MAX_ELEM_NUM+DI+500,1000+DI,3000+DI
+    EN,MAX_ELEM_NUM+DI+600,2000+DI,4000+DI
+*ENDDO
+MAX_ELEM_NUM=MAX_ELEM_NUM+1000
+
+! ------------------------------------------------------------
+! 10. Brace members: LINK180, X braces between adjacent planes
+! ------------------------------------------------------------
+TYPE,2
+MAT,1
+REAL,3
+*DO,I,1,NUM_NODE_PLANES-1,1
+    EN,MAX_ELEM_NUM+I+1000,1000+I,2000+I+1
+    EN,MAX_ELEM_NUM+I+2000,2000+I,3000+I+1
+    EN,MAX_ELEM_NUM+I+3000,3000+I,4000+I+1
+    EN,MAX_ELEM_NUM+I+4000,4000+I,1000+I+1
+
+    EN,MAX_ELEM_NUM+I+5000,1000+I,4000+I+1
+    EN,MAX_ELEM_NUM+I+6000,4000+I,3000+I+1
+    EN,MAX_ELEM_NUM+I+7000,3000+I,2000+I+1
+    EN,MAX_ELEM_NUM+I+8000,2000+I,1000+I+1
+*ENDDO
+MAX_ELEM_NUM=MAX_ELEM_NUM+1000
+
+ALLSEL,ALL,ALL
+FINISH
+SAVE,basicmodel,DB

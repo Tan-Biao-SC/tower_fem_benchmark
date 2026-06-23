@@ -1,0 +1,7 @@
+/AUX2
+
+FILEAUX2,brace_x_cant_static,full
+
+HBMAT,n2_mass,MATRIX,,ASCII,MASS,NO,YES
+
+FINISH

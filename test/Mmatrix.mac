@@ -1,0 +1,14 @@
+FINISH
+/SOLU
+
+ANTYPE,MODAL
+MODOPT,LANB,1
+EQSLV,SPARSE
+
+! Assemble matrices and write Jobname.full,
+! but do not continue the eigensolution
+WRFULL,1
+SOLVE
+
+FINISH
+

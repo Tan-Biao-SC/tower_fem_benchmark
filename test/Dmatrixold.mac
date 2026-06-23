@@ -1,0 +1,135 @@
+! ============================================================
+! n=2 supercell: axial generalized-strain test
+! alpha = [EX, KY, KZ, GXY, GXZ, KX]
+! ============================================================
+
+RESUME,test,DB
+
+/SOLU
+ANTYPE,STATIC
+NLGEOM,OFF
+EQSLV,SPARSE
+OUTRES,ALL,ALL
+ALLSEL,ALL
+
+! ------------------------------------------------------------
+! 1. Generalized strain amplitude
+! ------------------------------------------------------------
+AMP   = 1.0E-5
+LCELL = NUM_SUB_SECTIONS*LS
+
+EX   = 0
+KY   = 0
+KZ   = 0
+GXY  = 0
+GXZ  = AMP
+KX   = 0
+
+! ------------------------------------------------------------
+! 2. Remove rigid-body motion:
+!    node 5001 is the RBE3 reference node of the left section
+! ------------------------------------------------------------
+! D,5001,ALL,0
+! D,5001,UX,0
+! D,5001,UY,0
+! D,5001,UZ,0
+
+! *DO,ICORNER,1,4,1
+!     NL = ICORNER*1000 + 1
+!     D,NL,ROTX,0
+!     D,NL,ROTY,0
+!     D,NL,ROTZ,0
+! *ENDDO
+
+ALLSEL,ALL,ALL
+NSEL,S,LOC,X,-LCELL/2.0
+D,ALL,ALL
+ALLSEL,ALL,ALL
+! ------------------------------------------------------------
+! 3. Periodic displacement differences between the
+!    corresponding corner nodes of the two end sections
+!
+!    Left node plane : I = 1
+!    Right node plane: I = NUM_NODE_PLANES
+! ------------------------------------------------------------
+ILEFT  = 1
+IRIGHT = NUM_NODE_PLANES
+
+*DO,ICORNER,1,4,1
+
+    NL = ICORNER*1000 + ILEFT
+    NR = ICORNER*1000 + IRIGHT
+
+    *GET,YY,NODE,NL,LOC,Y
+    *GET,ZZ,NODE,NL,LOC,Z
+    
+    *GET,XL,NODE,NL,LOC,X
+    *GET,XR,NODE,NR,LOC,X
+    
+    ! DX  = XR - XL
+    ! X2D = 0.5*(XR**2 - XL**2)
+    
+    ! DUX = DX*(EX + ZZ*KY - YY*KZ)
+    ! DUY = DX*GXY + X2D*KZ - ZZ*DX*KX
+    ! DUZ = DX*GXZ - X2D*KY + YY*DX*KX
+    
+    ! DRX = DX*KX
+    ! DRY = DX*KY
+    ! DRZ = DX*KZ
+
+    DUX = LCELL*(EX + ZZ*KY - YY*KZ)
+    DUY = LCELL*GXY + 0.5*LCELL**2*KZ - ZZ*LCELL*KX
+    DUZ = LCELL*GXZ - 0.5*LCELL**2*KY + YY*LCELL*KX
+
+    DRX = LCELL*KX
+    DRY = LCELL*KY
+    DRZ = LCELL*KZ
+
+    CE,NEXT,DUX,NR,UX,  1,NL,UX,  -1
+    CE,NEXT,DUY,NR,UY,  1,NL,UY,  -1
+    CE,NEXT,DUZ,NR,UZ,  1,NL,UZ,  -1
+
+    CE,NEXT,DRX,NR,ROTX,1,NL,ROTX,-1
+    CE,NEXT,DRY,NR,ROTY,1,NL,ROTY,-1
+    CE,NEXT,DRZ,NR,ROTZ,1,NL,ROTZ,-1
+
+*ENDDO
+
+ALLSEL,ALL
+SOLVE
+FINISH
+
+! ------------------------------------------------------------
+! 4. Extract total elastic strain energy
+! ------------------------------------------------------------
+/POST1
+SET,LAST
+ALLSEL,ALL
+
+! Select only BEAM188 and LINK180 elements
+ESEL,S,TYPE,,1
+ESEL,A,TYPE,,2
+
+ETABLE,ERAS
+ETABLE,UELEM,SENE
+SSUM
+
+*GET,UAXIAL,SSUM,0,ITEM,UELEM
+
+! ------------------------------------------------------------
+! 5. Equivalent sectional axial stiffness
+!
+!    U = 0.5 * LCELL * D11 * EX^2
+! ------------------------------------------------------------
+D11_FE = 2*UAXIAL/(LCELL*AMP**2)
+
+*CFOPEN,n2_axial_result,txt
+*VWRITE,UAXIAL
+('Total strain energy = ',E20.10)
+*VWRITE,D11_FE
+('D11_FE = ',E20.10)
+*CFCLOSE
+
+ALLSEL,ALL
+FINISH
+

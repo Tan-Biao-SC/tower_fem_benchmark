@@ -8,8 +8,23 @@ cases/
 results/
 figures/
 
-# Local scratch/test run artifacts
-test/
+# Local ANSYS test run artifacts
+test/*.DB
+test/*.dbb
+test/*.DSP
+test/*.emat
+test/*.esav
+test/*.full
+test/*.rst
+test/*.mntr
+test/*.stat
+test/*.err
+test/*.log
+test/*.page
+test/*.lock
+test/*.tmp
+test/*.MATRIX*
+test/*.mapping*
 
 # ANSYS generated files
 *.db
