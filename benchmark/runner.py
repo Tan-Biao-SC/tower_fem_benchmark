@@ -2,7 +2,10 @@
 
 import subprocess
 import shutil
+import shlex
 from pathlib import Path
+
+from common.ansys import DEFAULT_ANSYS_EXE, run_ansys
 
 from .case import CaseDefinition, AnalysisType
 from .engine import TemplateEngine
@@ -22,7 +25,7 @@ class AnsysRunner:
         engine: TemplateEngine,
         cases_dir: Path,
         results_dir: Path,
-        ansys_exe: str = "ansys221",
+        ansys_exe: str = DEFAULT_ANSYS_EXE,
         figures_dir: Path | None = None,
     ):
         self.engine = engine
@@ -47,9 +50,9 @@ class AnsysRunner:
 
         # 3. Run ANSYS with CWD = cases/ so .db/.rst land there
         log_path = self.results_dir / f"{case.name}.log"
-        cmd = f"{self.ansys_exe} -b -i {inp_path} -o {log_path}"
-        print(f"[{case.name}] Running: {cmd}")
-        result = subprocess.run(cmd, shell=True, cwd=str(self.cases_dir))
+        cmd = [self.ansys_exe, "-b", "-i", str(inp_path), "-o", str(log_path)]
+        print(f"[{case.name}] Running: {shlex.join(cmd)}")
+        result = run_ansys(inp_path, log_path, self.cases_dir, self.ansys_exe)
 
         # 4. Collect result .txt files from ANSYS CWD → results/
         self._collect_results(case)
@@ -74,9 +77,10 @@ class AnsysRunner:
         inp_path.write_text(content)
 
         log_path = self.results_dir / f"{case.name}{suffix}.log"
-        cmd = f"{self.ansys_exe} -b -i {inp_path} -o {log_path}"
+        cmd = [self.ansys_exe, "-b", "-i", str(inp_path), "-o", str(log_path)]
         print(f"[{case.name}{suffix}] Running post-shape extraction...")
-        result = subprocess.run(cmd, shell=True, cwd=str(self.cases_dir))
+        print(f"[{case.name}{suffix}] Running: {shlex.join(cmd)}")
+        result = run_ansys(inp_path, log_path, self.cases_dir, self.ansys_exe)
 
         # Collect shape output file
         fname = f"{case.name}_shape_{target_mode}.txt"
@@ -101,11 +105,12 @@ class AnsysRunner:
         inp_path.write_text(content)
 
         log_path = self.results_dir / f"{case.name}{suffix}.log"
-        cmd = f"{self.ansys_exe} -b -i {inp_path} -o {log_path}"
+        cmd = [self.ansys_exe, "-b", "-i", str(inp_path), "-o", str(log_path)]
         print(
             f"[{case.name}{suffix}] Running plot-shape for {num_plot_modes} modes..."
         )
-        result = subprocess.run(cmd, shell=True, cwd=str(self.cases_dir))
+        print(f"[{case.name}{suffix}] Running: {shlex.join(cmd)}")
+        result = run_ansys(inp_path, log_path, self.cases_dir, self.ansys_exe)
 
         # Collect shape output files (one per mode)
         for imode in range(1, num_plot_modes + 1):
