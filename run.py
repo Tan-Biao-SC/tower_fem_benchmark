@@ -10,7 +10,8 @@ from pathlib import Path
 from common.ansys import DEFAULT_ANSYS_EXE
 from common.paths import ProjectPaths
 from periodic.defaults import DEFAULT_CASES as PERIODIC_CASES
-from periodic.runner import dry_run_cases as dry_run_periodic_cases
+from periodic.engine import PeriodicTemplateEngine
+from periodic.runner import PeriodicRunner
 from truss.case import AnalysisType
 from truss.defaults import ALL_CASES as TRUSS_CASES
 from truss.engine import TemplateEngine
@@ -83,14 +84,21 @@ def select_cases(all_cases, indices: list[int] | None):
 def run_periodic(args: argparse.Namespace) -> int:
     paths = ProjectPaths.for_module(BASE, "periodic")
     cases = select_cases(PERIODIC_CASES, args.cases)
+    engine = PeriodicTemplateEngine(paths.templates_dir)
+    runner = PeriodicRunner(engine, paths, ansys_exe=args.ansys_exe)
 
     if args.dry_run:
-        dry_run_periodic_cases(cases, paths)
+        runner.dry_run(cases)
         return 0
 
-    paths.ensure_base_dirs()
-    print("Periodic runner is scaffolded; ANSYS execution starts after template migration.")
-    return 0
+    results = runner.run_all(cases)
+
+    print("\n=== Summary ===")
+    for name, success in results.items():
+        status = "OK" if success else "FAILED"
+        print(f"  {name}: {status}")
+
+    return 0 if all(results.values()) else 1
 
 
 def dry_run_truss(cases, paths: ProjectPaths, engine: TemplateEngine) -> None:

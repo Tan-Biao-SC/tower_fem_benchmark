@@ -42,7 +42,8 @@ def collect_files(
     for pattern in patterns:
         for source_path in source_dir.glob(pattern):
             target_path = target_dir / source_path.name
+            if target_path.exists():
+                target_path.unlink()
             shutil.move(str(source_path), str(target_path))
             collected.append(target_path)
     return collected
-

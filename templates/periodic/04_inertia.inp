@@ -1,0 +1,25 @@
+! ============================================================
+! Mass and inertia calculation for the unconstrained basic model
+!
+! Run basicmodel.mac first, then run this file.
+! Output file:
+!   inertia_summary.txt
+! ============================================================
+
+FINISH
+RESUME,__CASE_NAME_VAL___basic,DB
+
+/SOLU
+ANTYPE,STATIC
+OUTPR,ALL,ALL
+ALLSEL,ALL
+
+! Precise rigid-body mass and inertia summary from element matrices
+IRLF,-1
+PSOLVE,ELFORM
+
+/OUTPUT,__CASE_NAME_VAL___inertia,txt
+IRLIST
+/OUTPUT
+
+FINISH
