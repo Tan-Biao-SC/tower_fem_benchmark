@@ -1,6 +1,6 @@
 """Default finite-length truss cases."""
 
-from benchmark.case import (
+from .case import (
     AnalysisType,
     BCType,
     BraceType,
@@ -109,4 +109,3 @@ ALL_CASES = (
     + SIMPLE_CASES
     + FREE_MODAL_CASES
 )
-

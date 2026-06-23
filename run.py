@@ -116,10 +116,8 @@ def run_truss(args: argparse.Namespace) -> int:
 
     runner = AnsysRunner(
         engine,
-        paths.cases_dir,
-        paths.results_dir,
+        paths,
         ansys_exe=args.ansys_exe,
-        figures_dir=paths.figures_dir,
     )
     results = runner.run_all(cases)
 
@@ -135,7 +133,7 @@ def run_truss(args: argparse.Namespace) -> int:
         print(f"  {name}: {status}")
 
     if args.validate:
-        from benchmark.validator import validate_frequencies, validate_tip_disp
+        from truss.validator import validate_frequencies, validate_tip_disp
 
         print("\n=== Validation ===")
         ref_freq = VALIDATIONS_DIR / "modal/modal_freq.txt"
