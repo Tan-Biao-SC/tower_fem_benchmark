@@ -40,6 +40,11 @@ def add_common_run_args(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_ANSYS_EXE,
         help=f"ANSYS executable path (default: {DEFAULT_ANSYS_EXE})",
     )
+    parser.add_argument(
+        "--summarize",
+        action="store_true",
+        help="Build summary CSV from existing result files without running ANSYS",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run periodic lattice unit analysis",
     )
     add_common_run_args(periodic_parser)
+    periodic_parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Validate periodic results against available reference data",
+    )
 
     truss_parser = subparsers.add_parser(
         "truss",
@@ -87,6 +97,15 @@ def run_periodic(args: argparse.Namespace) -> int:
     engine = PeriodicTemplateEngine(paths.templates_dir)
     runner = PeriodicRunner(engine, paths, ansys_exe=args.ansys_exe)
 
+    if args.summarize:
+        from periodic.summary import write_periodic_summary
+
+        summary_path = write_periodic_summary(cases, paths.results_dir)
+        print(f"Periodic summary written: {summary_path}")
+        if args.validate:
+            validate_periodic(cases, paths.results_dir)
+        return 0
+
     if args.dry_run:
         runner.dry_run(cases)
         return 0
@@ -98,7 +117,42 @@ def run_periodic(args: argparse.Namespace) -> int:
         status = "OK" if success else "FAILED"
         print(f"  {name}: {status}")
 
+    from periodic.summary import write_periodic_summary
+
+    summary_path = write_periodic_summary(cases, paths.results_dir)
+    print(f"\nPeriodic summary written: {summary_path}")
+
+    if args.validate:
+        validate_periodic(cases, paths.results_dir)
+
     return 0 if all(results.values()) else 1
+
+
+def validate_periodic(cases, results_dir: Path) -> None:
+    from periodic.validator import validate_dmatrix, validate_total_mass
+
+    print("\n=== Periodic Validation ===")
+    for case in cases:
+        ref_dir = VALIDATIONS_DIR / "periodic" / case.name
+        if not ref_dir.exists():
+            print(f"[{case.name}] No reference data found, skipped.")
+            continue
+
+        print(f"[{case.name}] PBC stiffness:")
+        validate_dmatrix(
+            results_dir / f"{case.name}_pbc_Dmatrix.csv",
+            ref_dir / "pbc_Dmatrix.csv",
+        )
+        print(f"[{case.name}] RP stiffness:")
+        validate_dmatrix(
+            results_dir / f"{case.name}_rp_Dmatrix.csv",
+            ref_dir / "rp_Dmatrix.csv",
+        )
+        print(f"[{case.name}] Total mass:")
+        validate_total_mass(
+            results_dir / f"{case.name}_inertia.txt",
+            ref_dir / "inertia.txt",
+        )
 
 
 def dry_run_truss(cases, paths: ProjectPaths, engine: TemplateEngine) -> None:
@@ -117,6 +171,13 @@ def run_truss(args: argparse.Namespace) -> int:
     paths = ProjectPaths.for_module(BASE, "truss")
     cases = select_cases(TRUSS_CASES, args.cases)
     engine = TemplateEngine(paths.templates_dir)
+
+    if args.summarize:
+        from truss.summary import write_truss_summary
+
+        summary_path = write_truss_summary(cases, paths.results_dir)
+        print(f"Truss summary written: {summary_path}")
+        return 0
 
     if args.dry_run:
         dry_run_truss(cases, paths, engine)
@@ -139,6 +200,11 @@ def run_truss(args: argparse.Namespace) -> int:
     for name, success in results.items():
         status = "OK" if success else "FAILED"
         print(f"  {name}: {status}")
+
+    from truss.summary import write_truss_summary
+
+    summary_path = write_truss_summary(cases, paths.results_dir)
+    print(f"\nTruss summary written: {summary_path}")
 
     if args.validate:
         from truss.validator import validate_frequencies, validate_tip_disp

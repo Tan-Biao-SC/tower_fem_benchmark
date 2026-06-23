@@ -1,382 +1,179 @@
-# Tower FEM Benchmark — 使用指南
+# Tower FEM Benchmark 使用指南
 
-## 目录结构
+本项目提供统一入口 `run.py`，但周期单元和有限长桁架已经拆成独立流程：
 
-```
-tower_fem_benchmark/
-├── run.py                  # 主入口脚本
-├── extract_shape.py        # 模态振型提取脚本
-├── benchmark/              # Python 包
-│   ├── case.py             # 工况定义（数据类 + 枚举）
-│   ├── engine.py            # 模板引擎（拼接 + 替换）
-│   ├── runner.py            # ANSYS 运行器
-│   ├── parser.py            # 结果解析器
-│   └── validator.py         # 结果验证器
-├── templates/               # APDL 模板文件
-│   ├── 01_model_basic.inp
-│   ├── 02_a_model_diaph_x.inp
-│   ├── ...
-│   ├── 05_modal_analysis.inp
-│   ├── 05_static_cantilever.inp
-│   ├── 05_static_simple.inp
-│   ├── 06_modal_post_shape.inp
-│   └── 06_modal_plot_shape.inp
-├── cases/                   # ANSYS 工作目录（.inp, .db, .rst）
-├── results/                 # 最终结果（.txt, .log）
-└── validations/             # 参考数据
-```
+- `periodic`：周期桁架单元建模，提取 PBC 刚度、RP 刚度和质量/惯性参数。
+- `truss`：有限长桁架结构分析，支持模态、悬臂静力、简支静力和振型后处理。
 
 ## 前提条件
 
-- Python 3.10+（需要 `numpy`）
-- ANSYS v221（`ansys221` 在 PATH 中，或通过 `--ansys-exe` 指定路径）
+- Python 3.10+，需要 `numpy`。
+- Windows PowerShell 下推荐 ANSYS v190，可执行文件为 `ansys190.exe`。
+- 如果 ANSYS 不在 `PATH` 中，通过 `--ansys-exe` 传入完整路径。
 
----
+示例：
 
-## 1. `run.py` — 主运行脚本
-
-### 基本用法
-
-```bash
-# 运行所有工况
-python run.py
-
-# 仅生成 .inp 文件（不运行 ANSYS）
-python run.py --dry-run
-
-# 运行 + 验证
-python run.py --validate
-
-# 只运行指定工况（0-based 索引）
-python run.py --cases 0 1 2
-
-# 指定 ANSYS 路径
-python run.py --ansys-exe /usr/ansys_inc/v221/ansys/bin/ansys221
-
-# 运行模态分析后，绘制前 7 阶振型
-python run.py --plot-shapes 7 --cases 0
+```powershell
+python run.py periodic --cases 0 --ansys-exe ansys190.exe
+python run.py truss --cases 0 --ansys-exe ansys190.exe
 ```
 
-### 命令行参数
+## 目录结构
 
-| 参数 | 说明 |
-|------|------|
-| `--dry-run` | 仅生成 `.inp` 文件，不运行 ANSYS |
-| `--validate` | 运行后与参考数据对比验证 |
-| `--plot-shapes N` | 模态分析后绘制前 N 阶振型（需要先运行模态分析） |
-| `--cases i j k` | 只运行指定索引的工况 |
-| `--ansys-exe PATH` | 指定 ANSYS 可执行文件路径 |
-
-### 工况定义
-
-在 `run.py` 中通过 `CaseDefinition` 数据类定义工况：
-
-```python
-from benchmark.case import CaseDefinition, DiaphType, BraceType, BCType, AnalysisType
-
-case = CaseDefinition(
-    name="my_case",              # 工况名称（唯一标识）
-    num_sections=10,             # 周期段数 (NP)
-    num_subsections=2,           # 每段子节数 (NC)
-    ls=3.0,                      # 子节长度 (m)
-    ws=2.0,                      # 截面宽度 (m)
-    diaph=DiaphType.X,           # 横隔类型: X 或 SLASH
-    brace=BraceType.X,           # 斜撑类型: X, W, N
-    bc=BCType.FIX_FREE,          # 边界条件: NONE, FIX_FREE, SIMPLE, ELASTIC
-    analysis=AnalysisType.MODAL, # 分析类型: MODAL, STATIC_CANTILEVER, STATIC_SIMPLE
-    num_modes=30,                # 模态提取阶数
-)
+```text
+tower_fem_benchmark/
+├── run.py
+├── common/                 # 公共 ANSYS 调用、路径管理、结果收集
+├── periodic/               # 周期单元 Python 流程
+├── truss/                  # 有限长桁架 Python 流程
+├── templates/
+│   ├── periodic/           # 周期单元 APDL 模板
+│   └── truss/              # 有限长桁架 APDL 模板
+├── cases/
+│   ├── periodic/           # 生成的完整周期单元 .inp
+│   └── truss/              # 生成的完整有限长桁架 .inp
+├── tmp/
+│   ├── periodic/           # ANSYS 周期单元工作目录
+│   └── truss/              # ANSYS 有限长桁架工作目录
+├── results/
+│   ├── periodic/           # 周期单元结果与 periodic_summary.csv
+│   └── truss/              # 有限长桁架结果与 truss_summary.csv
+├── validations/            # 正式参考数据
+└── figures/
+    └── truss/              # 振型图等图片输出
 ```
 
-### 模板拼接规则
+`cases/` 只保存可复现的完整输入脚本；ANSYS 的 `.db`、`.rst`、`.emat` 等过程文件写入 `tmp/<module>/<case>/`；最终数值结果和日志收集到 `results/<module>/`。
 
-根据工况参数自动选择模板并按顺序拼接：
+## 周期单元流程
 
-| 分析场景 | 模板序列 |
-|----------|----------|
-| 自由模态 | 01 → 02 → 03 → 05_modal_analysis |
-| 悬臂模态 | 01 → 02 → 03 → 04_a → 05_modal_analysis |
-| 简支模态 | 01 → 02 → 03 → 04_b → 05_modal_analysis |
-| 悬臂静力 | 01 → 02 → 03 → 04_a → 05_static_cantilever |
-| 简支静力 | 01 → 02 → 03 → 04_b → 05_static_simple |
+仅生成 APDL：
 
-### 占位符替换
-
-模板中的 `__XXX_VAL__`（数值）和 `__XXX_STR__`（字符串）会被自动替换：
-
-| 占位符 | 替换为 |
-|--------|--------|
-| `__CASE_NAME_VAL__` / `__CASE_NAME_STR__` | 工况名称 |
-| `__JobName_STR__` | 工况名称（ANSYS jobname） |
-| `__NumSections_VAL__` | 周期段数 |
-| `__NumSubsections_VAL__` | 每段子节数 |
-| `__Ls_VAL__` | 子节长度 |
-| `__Ws_VAL__` | 截面宽度 |
-| `__NUM_MODES_VAL__` | 模态提取阶数 |
-| `__TARGET_MODE_VAL__` | 目标模态阶数（post_shape 用） |
-| `__NUM_PLOT_MODES_VAL__` | 绘制模态阶数（plot_shape 用） |
-
-### 文件流转
-
-```
-run.py
-  │
-  ├─ TemplateEngine.build(case)
-  │    └─ 拼接模板 + 替换占位符 → cases/<name>.inp
-  │
-  ├─ AnsysRunner.run_case(case)
-  │    └─ ansys221 -b -i cases/<name>.inp -o results/<name>.log
-  │       ├─ cases/<name>.db      ← 数据库文件
-  │       ├─ cases/<name>.rst      ← 结果文件
-  │       └─ cases/<name>_freq.txt ← 输出结果
-  │
-  └─ _collect_results()
-       └─ cases/<name>_freq.txt → results/<name>_freq.txt
+```powershell
+python run.py periodic --dry-run
+python run.py periodic --dry-run --cases 0
 ```
 
----
+运行默认第 0 个 case：
 
-## 2. `extract_shape.py` — 模态振型提取
-
-用于在模态分析完成后，提取单阶或多阶模态振型数据。
-
-### 前提
-
-`cases/` 目录下必须存在对应工况的 `.db` 和 `.rst` 文件（即必须先运行过模态分析）。
-
-### 用法
-
-```bash
-# 查看可用工况
-python extract_shape.py --list
-
-# 提取第 7 阶模态振型数据
-python extract_shape.py W2.0_cant_modal 7
-
-# 绘制并提取前 7 阶模态振型（4 视角 PNG + 数据文件）
-python extract_shape.py W2.0_cant_modal --plot 7
-
-# 指定 ANSYS 路径
-python extract_shape.py W2.0_cant_modal 7 --ansys-exe /path/to/ansys221
+```powershell
+python run.py periodic --cases 0 --ansys-exe ansys190.exe
 ```
 
-### 输出
+如果 `ansys190.exe` 不在 `PATH`：
 
-| 命令 | 输出文件 |
-|------|----------|
-| `extract_shape.py <name> 7` | `results/<name>_shape_7.txt` |
-| `extract_shape.py <name> --plot 7` | `results/<name>_shape_1.txt` ~ `results/<name>_shape_7.txt` + PNG 图片 |
-
-振型数据文件格式：
-```
-Mode frequency =  1.23456E+02 Hz
-
-Station,X(m),UX,UY,UZ,ROTX,ROTY,ROTZ
-   1.,  0.0000, 0.00000E+00, 0.12345E-04, ...
-   2.,  3.0000, 0.00000E+00, 0.23456E-04, ...
+```powershell
+python run.py periodic --cases 0 --ansys-exe "C:\Program Files\ANSYS Inc\v190\ansys\bin\winx64\ansys190.exe"
 ```
 
----
+单个周期 case 会顺序执行：
 
-## 3. `benchmark` 包
-
-### `case.py` — 工况定义
-
-```python
-from benchmark.case import *
-
-# 枚举类型
-DiaphType.X          # X 型横隔
-DiaphType.SLASH       # 单斜杆横隔
-BraceType.X           # X 型斜撑
-BraceType.W           # W 型斜撑
-BraceType.N           # N 型斜撑
-BCType.NONE           # 自由-自由
-BCType.FIX_FREE       # 固定-自由（悬臂）
-BCType.SIMPLE         # 简支
-AnalysisType.MODAL             # 模态分析
-AnalysisType.STATIC_CANTILEVER # 悬臂静力
-AnalysisType.STATIC_SIMPLE     # 简支静力
-
-# 数据类
-case = CaseDefinition(name="test", num_sections=10, num_subsections=2,
-                      ls=3.0, ws=2.0)
-case.tower_height      # → 60.0 (num_sections * num_subsections * ls)
-case.num_node_planes   # → 21 (num_sections * num_subsections + 1)
+```text
+basic model -> PBC stiffness -> basic model -> RP stiffness -> basic model -> inertia
 ```
 
-### `engine.py` — 模板引擎
+输出文件：
 
-```python
-from benchmark.engine import TemplateEngine
-from pathlib import Path
-
-engine = TemplateEngine(Path("templates"))
-
-# 查看模板拼接顺序
-seq = engine.resolve_sequence(case)
-# → ['model_basic', DiaphType.X, BraceType.X, BCType.FIX_FREE, AnalysisType.MODAL]
-
-# 生成完整 APDL 输入
-content = engine.build(case)
-
-# 生成单阶振型提取脚本
-content = engine.build_post_shape(case, target_mode=7)
-
-# 生成多阶振型绘图脚本
-content = engine.build_plot_shape(case, num_plot_modes=7)
+```text
+results/periodic/<case>.log
+results/periodic/<case>_pbc_Dmatrix.csv
+results/periodic/<case>_rp_Dmatrix.csv
+results/periodic/<case>_inertia.txt
+results/periodic/periodic_summary.csv
 ```
 
-### `runner.py` — ANSYS 运行器
+基于已有结果重新生成汇总表：
 
-```python
-from benchmark.runner import AnsysRunner
-
-runner = AnsysRunner(engine, Path("cases"), Path("results"), ansys_exe="ansys221")
-
-# 运行单个工况
-runner.run_case(case)
-
-# 提取单阶振型
-runner.run_post_shape(case, target_mode=7)
-
-# 绘制多阶振型
-runner.run_plot_shape(case, num_plot_modes=7)
-
-# 批量运行
-results = runner.run_all(cases)  # → {name: bool}
+```powershell
+python run.py periodic --summarize
+python run.py periodic --summarize --cases 0
 ```
 
-### `parser.py` — 结果解析
+基于已有结果和参考数据验证：
 
-```python
-from benchmark.parser import parse_freq, parse_cantilever, parse_simple, parse_shape
-
-# 模态频率
-freq = parse_freq(Path("results/W2.0_cant_modal_freq.txt"))
-# → ndarray (n_modes, 2): [[mode_num, freq_hz], ...]
-
-# 悬臂端位移
-disp = parse_cantilever(Path("results/brace_x_cant_static_cantilever.txt"))
-# → ndarray (6, 6): [load_case, (ux, uy, uz, rx, ry, rz)]
-
-# 简支全节点位移
-load_cases, nodes, values = parse_simple(Path("results/..._simple.txt"))
-# → load_cases: (N,), nodes: (N,), values: (N, 6)
-
-# 模态振型
-freq, data = parse_shape(Path("results/..._shape_7.txt"))
-# → freq: float (Hz), data: (n_stations, 8)
+```powershell
+python run.py periodic --summarize --validate --cases 0
 ```
 
-### `validator.py` — 结果验证
+`periodic_summary.csv` 包含每个 case 的 `pbc_D11` 到 `pbc_D66`、`rp_D11` 到 `rp_D66`、PBC/RP 比值、总质量、质心和惯性矩阵主要分量。
 
-```python
-from benchmark.validator import validate_frequencies, validate_tip_disp
+默认 `periodic` case 定义在 `periodic/defaults.py`；参数结构定义在 `periodic/case.py`。
+周期单元参考数据位于 `validations/periodic/<case>/`。
 
-# 验证模态频率
-ok = validate_frequencies(computed, reference, rtol=1e-4)
+## 有限长桁架流程
 
-# 验证悬臂端位移
-ok = validate_tip_disp(computed, reference, rtol=1e-3)
+仅生成 APDL：
+
+```powershell
+python run.py truss --dry-run
+python run.py truss --dry-run --cases 0
 ```
 
----
+运行指定 case：
 
-## 4. 完整工作流示例
-
-### 示例 1：运行悬臂模态分析并提取振型
-
-```bash
-# 1. 运行工况 0（悬臂模态）
-python run.py --cases 0
-
-# 2. 提取第 1 阶振型数据
-python extract_shape.py W1.5_cant_modal 1
-
-# 3. 绘制前 7 阶振型（PNG + 数据）
-python extract_shape.py W1.5_cant_modal --plot 7
+```powershell
+python run.py truss --cases 0 --ansys-exe ansys190.exe
 ```
 
-### 示例 2：参数扫描 + 验证
+运行后绘制前 7 阶振型：
 
-```bash
-# 1. 运行所有工况
-python run.py
-
-# 2. 验证结果
-python run.py --validate
+```powershell
+python run.py truss --cases 0 --plot-shapes 7 --ansys-exe ansys190.exe
 ```
 
-### 示例 3：仅生成输入文件（不运行 ANSYS）
+运行后验证：
 
-```bash
-# 生成所有工况的 .inp 文件到 cases/ 目录
-python run.py --dry-run
-
-# 查看生成的文件
-ls cases/*.inp
+```powershell
+python run.py truss --cases 0 --validate --ansys-exe ansys190.exe
 ```
 
-### 示例 4：自定义工况
+基于已有结果重新生成汇总表：
 
-在 `run.py` 中添加：
-
-```python
-from benchmark.case import *
-
-my_case = CaseDefinition(
-    name="my_experiment",
-    num_sections=5,
-    num_subsections=3,
-    ls=2.0,
-    ws=1.5,
-    diaph=DiaphType.SLASH,
-    brace=BraceType.W,
-    bc=BCType.SIMPLE,
-    analysis=AnalysisType.STATIC_SIMPLE,
-)
-ALL_CASES.append(my_case)
+```powershell
+python run.py truss --summarize
 ```
 
-然后运行：
+输出文件按分析类型不同：
 
-```bash
-python run.py --cases -1  # 运行最后一个工况
+```text
+results/truss/<case>.log
+results/truss/<case>_freq.txt
+results/truss/<case>_cantilever.txt
+results/truss/<case>_simple.txt
+results/truss/<case>_shape_<N>.txt
+results/truss/truss_summary.csv
+figures/truss/<case>_mode_<N>.png
 ```
 
----
+`truss_summary.csv` 汇总每个已有结果 case 的几何参数、边界条件、构型信息、模态首频或静力最大绝对响应。
 
-## 5. 输出文件说明
+默认有限长桁架 case 定义在 `truss/defaults.py`；模板拼接顺序由 `truss/engine.py` 决定。
 
-### 模态分析输出
+## 常用命令
 
-| 文件 | 格式 | 说明 |
-|------|------|------|
-| `<name>_freq.txt` | CSV: `mode,freq_hz` | 模态频率 |
-| `<name>_shape_<N>.txt` | 见下方 | 第 N 阶振型中性轴位移 |
+```powershell
+# 查看总入口
+python run.py --help
 
-振型文件格式：
+# 查看子命令
+python run.py periodic --help
+python run.py truss --help
+
+# 生成并检查周期单元输入
+python run.py periodic --dry-run --cases 0
+
+# 运行周期单元第 0 个 case，并生成汇总表
+python run.py periodic --cases 0 --ansys-exe ansys190.exe
+
+# 只重建周期单元汇总表
+python run.py periodic --summarize
+
+# 重建周期单元汇总表并验证第 0 个 case
+python run.py periodic --summarize --validate --cases 0
+
+# 运行有限长桁架第 0 个 case
+python run.py truss --cases 0 --ansys-exe ansys190.exe
+
+# 只重建有限长桁架汇总表
+python run.py truss --summarize
 ```
-Mode frequency =  1.23456E+02 Hz
-
-Station,X(m),UX,UY,UZ,ROTX,ROTY,ROTZ
-   1.,  0.0000, 0.00000E+00, 0.12345E-04, ...
-```
-
-### 静力分析输出
-
-| 文件 | 格式 | 说明 |
-|------|------|------|
-| `<name>_cantilever.txt` | CSV: `load_case,ux,uy,uz,rx,ry,rz` | 悬臂端 6 载荷工况位移 |
-| `<name>_simple.txt` | CSV: `load_case,node,ux,uy,uz,rx,ry,rz` | 简支全节点位移 |
-
-### ANSYS 中间文件（在 `cases/` 目录）
-
-| 文件 | 说明 |
-|------|------|
-| `<name>.db` | ANSYS 数据库（几何、网格、参数） |
-| `<name>.rst` | ANSYS 结果文件（振型、应力等） |
-| `<name>.err` | ANSYS 错误文件 |
-
-> **注意**：`.db` 和 `.rst` 文件保留在 `cases/` 目录中，供 `extract_shape.py` 后续使用。如需清理，请手动删除。
