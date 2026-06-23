@@ -10,20 +10,31 @@ from .case import (
     DiaphType,
 )
 
-# ── Mapping from case parameter → template filename ──
-TEMPLATE_FILES: dict[str, str] = {
-    "model_basic": "01_model_basic.inp",
+DIAPH_TEMPLATE_FILES: dict[DiaphType, str] = {
     DiaphType.X: "02_a_model_diaph_x.inp",
     DiaphType.SLASH: "02_b_model_diaph_slash.inp",
+}
+
+BRACE_TEMPLATE_FILES: dict[BraceType, str] = {
     BraceType.X: "03_a_model_brace_x.inp",
     BraceType.W: "03_b_model_brace_w.inp",
     BraceType.N: "03_c_model_brace_n.inp",
+}
+
+BC_TEMPLATE_FILES: dict[BCType, str] = {
     BCType.FIX_FREE: "04_a_bc_fix_free.inp",
     BCType.SIMPLE: "04_b_bc_simple.inp",
     BCType.ELASTIC: "04_c_bc_elastic.inp",
+}
+
+ANALYSIS_TEMPLATE_FILES: dict[AnalysisType, str] = {
     AnalysisType.MODAL: "05_modal_analysis.inp",
     AnalysisType.STATIC_CANTILEVER: "05_static_cantilever.inp",
     AnalysisType.STATIC_SIMPLE: "05_static_simple.inp",
+}
+
+STATIC_TEMPLATE_FILES: dict[str, str] = {
+    "model_basic": "01_model_basic.inp",
     "post_shape": "06_modal_post_shape.inp",
     "plot_shape": "06_modal_plot_shape.inp",
 }
@@ -36,26 +47,38 @@ class TemplateEngine:
         self.templates_dir = Path(templates_dir)
         self._cache: dict[str, str] = {}
 
-    def _load(self, key: str) -> str:
-        """Load a template file by key, with caching."""
-        if key not in self._cache:
-            fname = TEMPLATE_FILES[key]
-            self._cache[key] = (self.templates_dir / fname).read_text()
-        return self._cache[key]
+    def _load_file(self, fname: str) -> str:
+        """Load a template file by filename, with caching."""
+        if fname not in self._cache:
+            self._cache[fname] = (self.templates_dir / fname).read_text(
+                encoding="utf-8"
+            )
+        return self._cache[fname]
+
+    def _load_static(self, key: str) -> str:
+        """Load a non-parametric stage template by key."""
+        return self._load_file(STATIC_TEMPLATE_FILES[key])
+
+    def template_files_for_case(self, case: CaseDefinition) -> list[str]:
+        """Return ordered list of template filenames for a case."""
+        files = [STATIC_TEMPLATE_FILES["model_basic"]]
+        files.append(DIAPH_TEMPLATE_FILES[case.diaph])
+        files.append(BRACE_TEMPLATE_FILES[case.brace])
+        if case.bc != BCType.NONE:
+            files.append(BC_TEMPLATE_FILES[case.bc])
+        files.append(ANALYSIS_TEMPLATE_FILES[case.analysis])
+        return files
 
     def resolve_sequence(self, case: CaseDefinition) -> list[str]:
-        """Return ordered list of template keys for a case."""
-        seq = ["model_basic"]
-        seq.append(case.diaph)
-        seq.append(case.brace)
-        if case.bc != BCType.NONE:
-            seq.append(case.bc)
-        seq.append(case.analysis)
-        return seq
+        """Return ordered list of template filenames for a case."""
+        return self.template_files_for_case(case)
 
     def concatenate(self, case: CaseDefinition) -> str:
         """Concatenate templates for a case into one APDL input string."""
-        parts = [self._load(key) for key in self.resolve_sequence(case)]
+        parts = [
+            self._load_file(fname)
+            for fname in self.template_files_for_case(case)
+        ]
         return "\n".join(parts)
 
     @staticmethod
@@ -105,7 +128,7 @@ class TemplateEngine:
             num_modes=case.num_modes,
             target_mode=target_mode,
         )
-        content = self._load("post_shape")
+        content = self._load_static("post_shape")
         return self.substitute(content, case_copy)
 
     def build_plot_shape(
@@ -125,5 +148,5 @@ class TemplateEngine:
             num_modes=case.num_modes,
             num_plot_modes=num_plot_modes,
         )
-        content = self._load("plot_shape")
+        content = self._load_static("plot_shape")
         return self.substitute(content, case_copy)

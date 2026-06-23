@@ -24,7 +24,9 @@ class PeriodicTemplateEngine:
 
     def _load(self, filename: str) -> str:
         if filename not in self._cache:
-            self._cache[filename] = (self.templates_dir / filename).read_text()
+            self._cache[filename] = (self.templates_dir / filename).read_text(
+                encoding="utf-8"
+            )
         return self._cache[filename]
 
     def concatenate(self) -> str:
@@ -61,4 +63,3 @@ class PeriodicTemplateEngine:
     def build(self, case: PeriodicCase) -> str:
         """Build a complete APDL input for one periodic case."""
         return self.substitute(self.concatenate(), case)
-

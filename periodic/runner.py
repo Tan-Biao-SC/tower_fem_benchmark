@@ -28,7 +28,7 @@ class PeriodicRunner:
 
     def write_input(self, case: PeriodicCase) -> None:
         input_path = self.paths.cases_dir / f"{case.name}.inp"
-        input_path.write_text(self.engine.build(case))
+        input_path.write_text(self.engine.build(case), encoding="utf-8")
         print(f"[{case.name}] Written {input_path}")
 
     def run_case(self, case: PeriodicCase) -> subprocess.CompletedProcess:
@@ -76,4 +76,3 @@ class PeriodicRunner:
                 results[case.name] = False
                 print(f"[{case.name}] FAILED: {e}")
         return results
-

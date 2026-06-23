@@ -50,7 +50,7 @@ def find_case_definition(case_name: str) -> CaseDefinition:
         sys.exit(1)
 
     # Parse parameters from the .inp file
-    content = inp_path.read_text()
+    content = inp_path.read_text(encoding="utf-8")
     params = {}
     for line in content.splitlines():
         line = line.strip()

@@ -160,7 +160,7 @@ def dry_run_truss(cases, paths: ProjectPaths, engine: TemplateEngine) -> None:
     for case in cases:
         content = engine.build(case)
         inp_path = paths.cases_dir / f"{case.name}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
         print(f"[{case.name}] Written {inp_path}")
     print(
         f"\nTruss dry run complete. {len(cases)} .inp files generated in {paths.cases_dir}/"

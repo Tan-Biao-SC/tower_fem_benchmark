@@ -46,7 +46,7 @@ class AnsysRunner:
 
         # 2. Write .inp to cases/ (ANSYS working directory)
         inp_path = self.cases_dir / f"{case.name}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
 
         # 3. Run ANSYS with CWD = cases/ so .db/.rst land there
         log_path = self.results_dir / f"{case.name}.log"
@@ -74,7 +74,7 @@ class AnsysRunner:
 
         suffix = f"_shape_{target_mode}"
         inp_path = self.cases_dir / f"{case.name}{suffix}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
 
         log_path = self.results_dir / f"{case.name}{suffix}.log"
         cmd = [self.ansys_exe, "-b", "-i", str(inp_path), "-o", str(log_path)]
@@ -102,7 +102,7 @@ class AnsysRunner:
 
         suffix = f"_plot_{num_plot_modes}"
         inp_path = self.cases_dir / f"{case.name}{suffix}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
 
         log_path = self.results_dir / f"{case.name}{suffix}.log"
         cmd = [self.ansys_exe, "-b", "-i", str(inp_path), "-o", str(log_path)]

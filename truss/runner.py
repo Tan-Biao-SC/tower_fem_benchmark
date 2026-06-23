@@ -31,7 +31,7 @@ class AnsysRunner:
         """Full pipeline: generate .inp, run ANSYS, collect results."""
         content = self.engine.build(case)
         inp_path = self.paths.cases_dir / f"{case.name}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
 
         work_dir = self.paths.work_dir(case.name)
         log_path = self.paths.results_dir / f"{case.name}.log"
@@ -55,7 +55,7 @@ class AnsysRunner:
 
         suffix = f"_shape_{target_mode}"
         inp_path = self.paths.cases_dir / f"{case.name}{suffix}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
 
         work_dir = self.paths.work_dir(case.name)
         log_path = self.paths.results_dir / f"{case.name}{suffix}.log"
@@ -79,7 +79,7 @@ class AnsysRunner:
 
         suffix = f"_plot_{num_plot_modes}"
         inp_path = self.paths.cases_dir / f"{case.name}{suffix}.inp"
-        inp_path.write_text(content)
+        inp_path.write_text(content, encoding="utf-8")
 
         work_dir = self.paths.work_dir(case.name)
         log_path = self.paths.results_dir / f"{case.name}{suffix}.log"
