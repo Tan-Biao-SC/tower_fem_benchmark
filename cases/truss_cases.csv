@@ -1,0 +1,4 @@
+id,name,tags,enabled,num_sections,num_subsections,ls,ws,diaph,brace,bc,analysis,num_modes,description
+T001,base_modal,baseline modal,true,10,2,3.0,2.0,x,x,fix_free,modal,30,基准悬臂模态
+T002,nbrace_static,baseline static brace,true,10,2,3.0,2.0,x,n,fix_free,static_cantilever,,N型斜材悬臂静力
+T003,simple_static,static simple,false,10,2,3.0,2.0,x,x,simple,static_simple,,简支静力

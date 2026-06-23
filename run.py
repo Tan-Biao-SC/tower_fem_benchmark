@@ -8,11 +8,14 @@ import sys
 from pathlib import Path
 
 from common.ansys import DEFAULT_ANSYS_EXE
+from common.case_table import print_case_list, print_case_table, select_case_entries
 from common.paths import ProjectPaths
+from periodic.case_table import load_periodic_case_table
 from periodic.defaults import DEFAULT_CASES as PERIODIC_CASES
 from periodic.engine import PeriodicTemplateEngine
 from periodic.runner import PeriodicRunner
 from truss.case import AnalysisType
+from truss.case_table import load_truss_case_table
 from truss.defaults import ALL_CASES as TRUSS_CASES
 from truss.engine import TemplateEngine
 from truss.runner import AnsysRunner
@@ -33,7 +36,36 @@ def add_common_run_args(parser: argparse.ArgumentParser) -> None:
         nargs="+",
         type=int,
         default=None,
-        help="Run only specific case indices (0-based)",
+        help="Run only specific case indices (0-based, legacy)",
+    )
+    parser.add_argument(
+        "--case-table",
+        type=Path,
+        default=None,
+        help="Read cases from a CSV case table",
+    )
+    parser.add_argument(
+        "--case-ids",
+        nargs="+",
+        default=None,
+        help="Run only cases with these CSV ids",
+    )
+    parser.add_argument(
+        "--case-names",
+        nargs="+",
+        default=None,
+        help="Run only cases with these names",
+    )
+    parser.add_argument(
+        "--tags",
+        nargs="+",
+        default=None,
+        help="Run cases containing all of these space-separated CSV tags",
+    )
+    parser.add_argument(
+        "--list-cases",
+        action="store_true",
+        help="List available cases and exit",
     )
     parser.add_argument(
         "--ansys-exe",
@@ -91,9 +123,43 @@ def select_cases(all_cases, indices: list[int] | None):
     return [all_cases[i] for i in indices]
 
 
+def load_cases_from_args(args: argparse.Namespace, default_cases, table_loader):
+    """Return cases from either Python defaults or a CSV case table."""
+    if args.case_table is None:
+        cases = select_cases(default_cases, args.cases)
+        if args.list_cases:
+            print_case_list(cases)
+            return cases, True
+        if args.case_ids or args.case_names or args.tags:
+            raise ValueError(
+                "--case-ids, --case-names, and --tags require --case-table"
+            )
+        return cases, False
+
+    entries = table_loader(args.case_table)
+    if args.list_cases:
+        print_case_table(entries)
+        return [entry.case for entry in entries], True
+
+    selected = select_case_entries(
+        entries,
+        indices=args.cases,
+        ids=args.case_ids,
+        names=args.case_names,
+        tags=args.tags,
+    )
+    return [entry.case for entry in selected], False
+
+
 def run_periodic(args: argparse.Namespace) -> int:
     paths = ProjectPaths.for_module(BASE, "periodic")
-    cases = select_cases(PERIODIC_CASES, args.cases)
+    cases, listed = load_cases_from_args(
+        args,
+        PERIODIC_CASES,
+        load_periodic_case_table,
+    )
+    if listed:
+        return 0
     engine = PeriodicTemplateEngine(paths.templates_dir)
     runner = PeriodicRunner(engine, paths, ansys_exe=args.ansys_exe)
 
@@ -169,7 +235,13 @@ def dry_run_truss(cases, paths: ProjectPaths, engine: TemplateEngine) -> None:
 
 def run_truss(args: argparse.Namespace) -> int:
     paths = ProjectPaths.for_module(BASE, "truss")
-    cases = select_cases(TRUSS_CASES, args.cases)
+    cases, listed = load_cases_from_args(
+        args,
+        TRUSS_CASES,
+        load_truss_case_table,
+    )
+    if listed:
+        return 0
     engine = TemplateEngine(paths.templates_dir)
 
     if args.summarize:
@@ -240,10 +312,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.module == "periodic":
-        return run_periodic(args)
-    if args.module == "truss":
-        return run_truss(args)
+    try:
+        if args.module == "periodic":
+            return run_periodic(args)
+        if args.module == "truss":
+            return run_truss(args)
+    except ValueError as e:
+        parser.error(str(e))
 
     parser.print_help()
     return 0

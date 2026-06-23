@@ -45,6 +45,19 @@ tower_fem_benchmark/
 
 `cases/` 只保存可复现的完整输入脚本；ANSYS 的 `.db`、`.rst`、`.emat` 等过程文件写入 `tmp/<module>/<case>/`；最终数值结果和日志收集到 `results/<module>/`。
 
+## CSV 工况表
+
+推荐用 CSV 维护常用工况：
+
+```powershell
+python run.py truss --case-table cases/truss_cases.csv --list-cases
+python run.py truss --case-table cases/truss_cases.csv --case-ids T001 --dry-run
+python run.py truss --case-table cases/truss_cases.csv --tags baseline --dry-run
+python run.py periodic --case-table cases/periodic_cases.csv --list-cases
+```
+
+CSV 每行是一个工况，`id` 和 `name` 必须唯一，`tags` 用空格分隔，`enabled=false` 的工况默认不运行，但可以用 `--case-ids` 或 `--case-names` 显式选择。不传 `--case-table` 时仍使用 Python 里的默认工况列表，旧的 `--cases 0 1 2` 下标选择继续可用。
+
 ## 周期单元流程
 
 仅生成 APDL：

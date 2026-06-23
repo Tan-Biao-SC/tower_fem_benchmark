@@ -10,6 +10,7 @@ from common.paths import ProjectPaths
 
 from .case import PeriodicCase
 from .engine import PeriodicTemplateEngine
+from .parser import write_mass_matrix_csv
 
 
 class PeriodicRunner:
@@ -58,6 +59,9 @@ class PeriodicRunner:
         ]
         for target_path in collect_files(work_dir, self.paths.results_dir, patterns):
             print(f"[{case.name}] Collected {target_path.name}")
+            if target_path.name == f"{case.name}_inertia.txt":
+                csv_path = write_mass_matrix_csv(target_path)
+                print(f"[{case.name}] Wrote {csv_path.name}")
 
     def dry_run(self, cases: list[PeriodicCase]) -> None:
         for case in cases:

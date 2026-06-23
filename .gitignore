@@ -4,7 +4,8 @@ __pycache__/
 .pytest_cache/
 
 # Generated ANSYS cases/results/figures
-cases/
+cases/periodic/
+cases/truss/
 results/
 figures/
 tmp/
