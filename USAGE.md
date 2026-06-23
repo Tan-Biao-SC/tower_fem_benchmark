@@ -38,9 +38,9 @@ tower_fem_benchmark/
 ├── results/
 │   ├── periodic/           # 周期单元结果与 periodic_summary.csv
 │   └── truss/              # 有限长桁架结果与 truss_summary.csv
-├── validations/            # 正式参考数据
+├── validations/             # 正式参考数据
 └── figures/
-    └── truss/              # 振型图等图片输出
+    └── truss/               # 振型图等图片输出
 ```
 
 `cases/` 只保存可复现的完整输入脚本；ANSYS 的 `.db`、`.rst`、`.emat` 等过程文件写入 `tmp/<module>/<case>/`；最终数值结果和日志收集到 `results/<module>/`。
