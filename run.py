@@ -153,11 +153,29 @@ def load_cases_from_args(args: argparse.Namespace, default_cases, table_loader):
 
 def run_periodic(args: argparse.Namespace) -> int:
     paths = ProjectPaths.for_module(BASE, "periodic")
-    cases, listed = load_cases_from_args(
-        args,
-        PERIODIC_CASES,
-        load_periodic_case_table,
+    default_case_table = BASE / "cases" / "periodic_cases.csv"
+    summarize_all_registered = (
+        args.summarize
+        and args.case_table is None
+        and args.cases is None
+        and args.case_ids is None
+        and args.case_names is None
+        and args.tags is None
+        and default_case_table.exists()
     )
+    if summarize_all_registered:
+        # A summary rebuild should cover every registered case that has complete
+        # result files, including disabled CSV rows.  The Python defaults are a
+        # small development subset and would silently omit parameter sweeps.
+        entries = load_periodic_case_table(default_case_table)
+        cases = [entry.case for entry in entries]
+        listed = False
+    else:
+        cases, listed = load_cases_from_args(
+            args,
+            PERIODIC_CASES,
+            load_periodic_case_table,
+        )
     if listed:
         return 0
     engine = PeriodicTemplateEngine(paths.templates_dir)

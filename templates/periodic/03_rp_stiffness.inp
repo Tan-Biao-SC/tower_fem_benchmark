@@ -100,8 +100,8 @@ LCELL=NUM_SUB_SECTIONS*LS
 
     ! Apply generalized strain through right rigid-plane reference node.
     D,NRC,UX,  LCELL*EX
-    D,NRC,UY,  LCELL*GXY+0.5*LCELL*KZ
-    D,NRC,UZ,  LCELL*GXZ-0.5*LCELL*KY 
+    D,NRC,UY,  LCELL*GXY+0.5*LCELL**2*KZ
+    D,NRC,UZ,  LCELL*GXZ-0.5*LCELL**2*KY
     D,NRC,ROTX,LCELL*KX
     D,NRC,ROTY,LCELL*KY
     D,NRC,ROTZ,LCELL*KZ
