@@ -1,0 +1,181 @@
+! ============================================================
+! Affine stiffness tests for the periodic truss unit cell
+!
+! This file starts from basicmodel.mac database, affines the EBM displacement
+! field to the periodic truss unit cell (all the nodes), fixes the left center
+! reference node, applies one small generalized strain component at
+! the right center reference node, and computes D11~D66 from strain
+! energy.
+!
+! Generalized strain order:
+!   alpha = [EX, KY, KZ, GXY, GXZ, KX]
+!
+! Output file:
+!   rp_Dmatrix_result.csv
+! ============================================================
+
+FINISH
+RESUME,__CASE_NAME_VAL___basic,DB
+
+! ------------------------------------------------------------
+! 1. Add rigid planes at both end sections
+! ------------------------------------------------------------
+/PREP7
+ALLSEL,ALL,ALL
+
+AMP=1.0E-5
+
+! Static condensation evaluated from the n=1 EBM energy gives:
+!   EY = EFFECTIVE_NU*EX
+!   EZ = EFFECTIVE_NU*EX
+!   GYZ = 0
+TRANSVERSE_RATIO=-0.1013866488428464
+
+*DIM,UCASE,ARRAY,6
+*DIM,DCASE,ARRAY,6
+
+*DO,ICASE,1,6,1
+
+    EX=0
+    KY=0
+    KZ=0
+    GXY=0
+    GXZ=0
+    KX=0
+
+    *IF,ICASE,EQ,1,THEN
+        EX=AMP
+    *ENDIF
+    *IF,ICASE,EQ,2,THEN
+        KY=AMP
+    *ENDIF
+    *IF,ICASE,EQ,3,THEN
+        KZ=AMP
+    *ENDIF
+    *IF,ICASE,EQ,4,THEN
+        GXY=AMP
+    *ENDIF
+    *IF,ICASE,EQ,5,THEN
+        GXZ=AMP
+    *ENDIF
+    *IF,ICASE,EQ,6,THEN
+        KX=AMP
+    *ENDIF
+
+    ! Slave strains minimizing the EBM strain energy.
+    EY=TRANSVERSE_RATIO*EX
+    EZ=TRANSVERSE_RATIO*EX
+    GYZ=0
+
+    FINISH
+    /SOLU
+    ANTYPE,STATIC,NEW
+    NLGEOM,OFF
+    EQSLV,SPARSE
+    OUTRES,ALL,ALL
+    ALLSEL,ALL
+    DDELE,ALL,ALL
+
+    ! Current EBM displacement field with rigid motions set to zero:
+    !
+    ! UX   = X*EX - X*Y*KY + X*Z*KZ
+    ! UY   = Y*EY + Z*GYZ/2 + X*GXY
+    !        - X*Z*KX + X^2*KY/2
+    ! UZ   = Y*GYZ/2 + Z*EZ + X*GXZ
+    !        + X*Y*KX - X^2*KZ/2
+    ! ROTX = X*KX
+    ! ROTY = -GXZ/2 - Y*KX/2 + X*KZ
+    ! ROTZ =  GXY/2 - Z*KX/2 + X*KY
+    *DO,I,1,NUM_NODE_PLANES,1
+        *DO,ICORNER,1,4,1
+            NID=ICORNER*1000+I
+            *GET,XPOS,NODE,NID,LOC,X
+            *GET,YPOS,NODE,NID,LOC,Y
+            *GET,ZPOS,NODE,NID,LOC,Z
+
+            UXVAL=XPOS*EX-XPOS*YPOS*KY+XPOS*ZPOS*KZ
+            UYVAL=YPOS*EY+0.5*ZPOS*GYZ+XPOS*GXY
+            UYVAL=UYVAL-XPOS*ZPOS*KX+0.5*XPOS**2*KY
+            UZVAL=0.5*YPOS*GYZ+ZPOS*EZ+XPOS*GXZ
+            UZVAL=UZVAL+XPOS*YPOS*KX-0.5*XPOS**2*KZ
+            RXVAL=XPOS*KX
+            RYVAL=-0.5*GXZ-0.5*YPOS*KX+XPOS*KZ
+            RZVAL= 0.5*GXY-0.5*ZPOS*KX+XPOS*KY
+
+            D,NID,UX,UXVAL
+            D,NID,UY,UYVAL
+            D,NID,UZ,UZVAL
+            D,NID,ROTX,RXVAL
+            D,NID,ROTY,RYVAL
+            D,NID,ROTZ,RZVAL
+        *ENDDO
+    *ENDDO
+
+    ALLSEL,ALL
+    SOLVE
+    FINISH
+
+    /POST1
+    SET,LAST
+    ALLSEL,ALL
+
+    ESEL,S,TYPE,,1
+    ESEL,A,TYPE,,2
+    ETABLE,ERAS
+    ETABLE,UELEM,SENE
+    SSUM
+    *GET,UTMP,SSUM,0,ITEM,UELEM
+
+    UCASE(ICASE)=UTMP
+    DCASE(ICASE)=2*UTMP/(LCELL*AMP**2)
+    ALLSEL,ALL
+
+*ENDDO
+
+! ------------------------------------------------------------
+! 9. Write D11...D66
+!
+! Current EBM numerical targets for n=1 are approximately:
+!   D11 = 3.60916599E9
+!   D22 = 3.60783932E9
+!   D33 = 3.60783932E9
+!   D44 = 2.50219697E8
+!   D55 = 2.50219697E8
+!   D66 = 5.00311217E8
+! ------------------------------------------------------------
+*CFOPEN,n1_default_affine_Dmatrix,csv
+*VWRITE,'case,dof,dcoef,total_strain_energy,diagonal_stiffness'
+(A)
+
+UTMP=UCASE(1)
+DTMP=DCASE(1)
+*VWRITE,UTMP,DTMP
+('1,EX,D11,',E20.10,',',E20.10)
+
+UTMP=UCASE(2)
+DTMP=DCASE(2)
+*VWRITE,UTMP,DTMP
+('2,KY_EBM,D22,',E20.10,',',E20.10)
+
+UTMP=UCASE(3)
+DTMP=DCASE(3)
+*VWRITE,UTMP,DTMP
+('3,KZ_EBM,D33,',E20.10,',',E20.10)
+
+UTMP=UCASE(4)
+DTMP=DCASE(4)
+*VWRITE,UTMP,DTMP
+('4,GXY,D44,',E20.10,',',E20.10)
+
+UTMP=UCASE(5)
+DTMP=DCASE(5)
+*VWRITE,UTMP,DTMP
+('5,GXZ,D55,',E20.10,',',E20.10)
+
+UTMP=UCASE(6)
+DTMP=DCASE(6)
+*VWRITE,UTMP,DTMP
+('6,KX,D66,',E20.10,',',E20.10)
+*CFCLOS
+
+FINISH
